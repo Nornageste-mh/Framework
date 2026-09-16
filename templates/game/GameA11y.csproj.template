@@ -1,0 +1,132 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    逐作 csproj 模板。new_game.py 会按 --route 保留 MONO 或 IL2CPP 那一段，
+    删掉另一段和所有路线标记行。
+
+    ★ 三行可复现构建属性**一条都不能少**（README「构建与打包」）：
+        Deterministic
+        IncludeSourceRevisionInInformationalVersion=false
+        EnableSourceLink=false
+      只关前两条是不够的：SDK 默认 EnableSourceLink=true，会把当前 git 提交写进 PDB，
+      PDB 的内容哈希又进 DLL 的 debug 目录与确定性 MVID。
+      TransparentHer 就只关了第一条、以为修好了，一提交才发现产物还是变。
+  -->
+
+  <PropertyGroup>
+    <AssemblyName>{{NS}}</AssemblyName>
+    <RootNamespace>{{NS}}</RootNamespace>
+    <Version>{{VERSION}}</Version>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>CS0169;CS0414;CS0649</NoWarn>
+
+    <!-- 可复现构建三行 -->
+    <Deterministic>true</Deterministic>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <EnableSourceLink>false</EnableSourceLink>
+
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+<!-- @@ROUTE:il2cpp@@ -->
+    <!-- IL2CPP 路线额外配置 -->
+    <TargetFramework>net6.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CodePage>65001</CodePage>
+<!-- @@ENDROUTE@@ -->
+<!-- @@ROUTE:mono@@ -->
+    <TargetFramework>netstandard2.1</TargetFramework>
+<!-- @@ENDROUTE@@ -->
+  </PropertyGroup>
+
+  <ItemGroup>
+<!-- @@ROUTE:mono@@ -->
+    <!-- Mono 路线：BepInEx 5 的 core 由 build.ps1 下载到 mod\bep_dl\ -->
+    <Reference Include="BepInEx">
+      <HintPath>..\..\bep_dl\BepInEx\core\BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>..\..\bep_dl\BepInEx\core\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+<!-- @@ENDROUTE@@ -->
+<!-- @@ROUTE:il2cpp@@ -->
+    <!-- IL2CPP 路线：BepInEx 6 的核心与 interop 都在游戏目录里 -->
+    <Reference Include="BepInEx.Core">
+      <HintPath>$({{GAME}}GameDir)\BepInEx\core\BepInEx.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="BepInEx.Unity.IL2CPP">
+      <HintPath>$({{GAME}}GameDir)\BepInEx\core\BepInEx.Unity.IL2CPP.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$({{GAME}}GameDir)\BepInEx\core\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppInterop.Runtime">
+      <HintPath>$({{GAME}}GameDir)\BepInEx\core\Il2CppInterop.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$({{GAME}}GameDir)\BepInEx\interop\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2Cppmscorlib">
+      <HintPath>$({{GAME}}GameDir)\BepInEx\interop\Il2Cppmscorlib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$({{GAME}}GameDir)\BepInEx\interop\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+<!-- @@ENDROUTE@@ -->
+  </ItemGroup>
+
+<!-- @@ROUTE:mono@@ -->
+  <ItemGroup>
+    <!-- Mono 路线：从 <Game>_Data\Managed 直接引用 -->
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$({{GAME}}GameDir)\{{DATADIR}}\Managed\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$({{GAME}}GameDir)\{{DATADIR}}\Managed\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$({{GAME}}GameDir)\{{DATADIR}}\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$({{GAME}}GameDir)\{{DATADIR}}\Managed\UnityEngine.UIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$({{GAME}}GameDir)\{{DATADIR}}\Managed\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$({{GAME}}GameDir)\{{DATADIR}}\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$({{GAME}}GameDir)\{{DATADIR}}\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$({{GAME}}GameDir)\{{DATADIR}}\Managed\Unity.TextMeshPro.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+<!-- @@ENDROUTE@@ -->
+
+  <!--
+    平台层（L1）从 A11yFramework 整份拷进 src\{{NS}}\ 下，
+    和逐作文件放在同一个目录里编译。默认的 glob 已经会带上它们，不需要额外配置。
+  -->
+
+</Project>
