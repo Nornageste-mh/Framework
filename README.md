@@ -124,7 +124,8 @@ A11yFramework/
 │
 └─ tools/
    ├─ new_game.py                  从本仓库生成一个新作的骨架
-   └─ compile_check.ps1            ★ 机械验证「平台层无游戏类型依赖」
+   ├─ compile_check.ps1            ★ 机械验证「平台层无游戏类型依赖」
+   └─ assemble_from_sources.py     从三个源仓库重新组装 platform/ 与 licenses/
 ```
 
 ---
@@ -397,6 +398,7 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 | 平台层**能挂上逐作 partial** | 用一份最小 `UiNav.Game.cs` 占位实现参与编译 | partial 拆分的接口是完整的 |
 | 三作差异矩阵 | 对 `main` 克隆后按 SHA256 逐文件比对 + 归一化 `namespace` 后 `diff -U0` | 见流水线 §1.1 |
 | `tools/new_game.py` 能生成干净的骨架 | 冒烟测试：生成 54 个文件，**无残留占位符、无上一作标识**，`.ps1` 带 BOM，csproj 按路线正确裁剪 | 骨架生成这一环是通的 |
+| `tools/assemble_from_sources.py` 可复现 | 重跑一遍后 `git status` 为空 | 平台层与 licenses/ 是**逐字节可复现**的，不是一次性手改的结果 |
 
 | **没做过的验证** | 说明 |
 |---|---|
