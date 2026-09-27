@@ -128,7 +128,10 @@ def main():
     made = []
 
     # ---- L1 平台层：整份拷贝，只换 namespace ----
-    for fn in ("Speech.cs", "Nvda.cs", "Sapi.cs", "UiNav.cs"):
+    # ⚠ KeyEdge.cs 也属于 L1：UiNav.cs 里的按键边沿检测直接引用它。
+    #   0.1.0.0 的列表漏了它，导致新作骨架**第一次编译就失败**
+    #   （CS0103: 当前上下文中不存在名称"KeyEdge"）。0.1.0.1 补上。
+    for fn in ("Speech.cs", "Nvda.cs", "Sapi.cs", "UiNav.cs", "KeyEdge.cs"):
         text, _ = read(os.path.join(ROOT, "platform", fn))
         text = text.replace("namespace A11yFramework", "namespace " + a.ns)
         if "namespace " + a.ns not in text:

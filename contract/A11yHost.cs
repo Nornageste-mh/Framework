@@ -1,6 +1,8 @@
 using System;
 using BepInEx.Configuration;
 using BepInEx.Logging;
+using UnityEngine;
+using UnityEngine.UI;
 
 namespace A11yFramework
 {
@@ -174,6 +176,43 @@ namespace A11yFramework
 
         /// <summary>导航模式是否要接管这一下「回车 / 空格」的 submit（对应 UiNav.ShouldMuteUnitySubmit）。</summary>
         internal static Func<bool> ShouldMuteUnitySubmit;
+
+        // ====================================================================
+        // 界面标签钩子（0.1.0.1 新增，来源：《妹控计划》实机取证）
+        //
+        // 起因：平台层原来的取值顺序是「子树文字 → 同行兄弟文字 → 别名表 → 对象名兜底」，
+        // 但第四作实测 **173 个可交互控件里 131 个读不到文字**，只能退化成对象名
+        // （CommonCloseButton / Button (6) / CCPlus / VolumeButton …），而且同名控件在不同
+        // 面板里含义不同（CommonButton 在番茄钟里是「停止 / 暂停 / 下一个」）——
+        // 「对象名 → 中文」的平表根本区分不开，必须能看**路径**。
+        //
+        // 四个钩子**只增不改**：平台层原有的取值顺序一条不动，只是在
+        // 「别名表之后、对象名兜底之前」多问一句。钩子没填（前三作）时
+        // 行为与从前逐字节一致 —— 由 tools/compile_check.ps1 与逐字节 diff 保证。
+        // ====================================================================
+
+        /// <summary>
+        /// 「这段文字是预制体占位，别念」。平台层每读到一段文本都会问一次。
+        ///
+        /// 实例：`New Text` / `Button` / `音效名称` / `000` 这些是预制体上没被运行时
+        /// 替换掉的默认字，念出来比念对象名还糟 —— 玩家会以为那真的叫「New Text」。
+        /// </summary>
+        internal static Func<string, bool> GameTextIsNoise;
+
+        /// <summary>
+        /// 逐作标签解析。平台层在「同行兄弟文字」之后、对象名兜底之前问它；
+        /// 输入框则更早（在占位提示之前）。返回空串表示「我不认识这个控件」，照旧往下走。
+        /// </summary>
+        internal static Func<Selectable, string> GameLabelOf;
+
+        /// <summary>面板组的中文名（平台层默认念 Canvas 下的顶层祖先名，如 `Right` / `UpRight`）。</summary>
+        internal static Func<Transform, string> GameGroupName;
+
+        /// <summary>
+        /// 面板组的排序权重，**小的排前面**。默认（没填）时平台层保持原来的排序。
+        /// 用途：把最常用的那一组排到第一组，否则玩家进导航落在别处、要按 PageDown 才够得着。
+        /// </summary>
+        internal static Func<Transform, int> GameGroupPriority;
 
         // ====================================================================
         // 自检
