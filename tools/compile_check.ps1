@@ -46,7 +46,7 @@ Write-Host "=== A11yFramework 平台层自检 ===" -ForegroundColor Cyan
 
 # ---------------------------------------------------------------- 1/4 静态断言
 Write-Host ""
-Write-Host "[1/4] 静态断言：platform\ 的代码里不许有 Plugin. 引用（注释不算）" -ForegroundColor Cyan
+Write-Host "[1/4] 静态断言：Plugin. 引用 / namespace / partial / **重读缓冲区是唯一出口**" -ForegroundColor Cyan
 if (-not (Test-Path -LiteralPath $platform)) { Fail "找不到 platform\（请在 A11yFramework 仓库根目录下运行）" }
 
 # 只看**注释之外**的代码。源文件里保留了「原来引用的是 Plugin.*」这类说明性注释，
@@ -78,6 +78,17 @@ if (-not (Select-String -LiteralPath (Join-Path $platform "UiNav.cs") -Pattern '
     Fail "UiNav.cs 不是 partial class —— 逐作区无法挂上去"
 }
 Ok "UiNav 已拆成 partial（引擎 + 逐作区）"
+
+# 重读缓冲区只允许一个出口：platform 下只有 Repeat.cs 能调 Speech.Speak。
+# 这个坑踩过两次（《钟塔》0.1.0.1「选项播报绕过了缓冲区」/《妹控计划》0.1.0.0 同款），
+# 所以做成机械断言，而不是再写一遍复盘。
+$lint = Join-Path $PSScriptRoot "lint_repeat.ps1"
+if (Test-Path -LiteralPath $lint) {
+    & $lint -Path $platform -AllowFile "Repeat.cs"
+    if ($LASTEXITCODE -ne 0) { Fail "平台层里有绕过重读缓冲区的播报 —— 逐作层将听不到它" }
+} else {
+    Write-Host "  （找不到 lint_repeat.ps1，跳过重读出口检查）" -ForegroundColor Yellow
+}
 
 # ---------------------------------------------------------------- 2/4 找引用
 Write-Host ""

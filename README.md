@@ -54,6 +54,7 @@ TransparentHer 就是这么丢掉 `[朗读]` 诊断日志块和 `UiNav.Diag()` �
 │   platform/Sapi.cs    纯 P/Invoke + vtable 的 ISpVoice    │
 │   platform/UiNav.cs   Unity Selectable 通用导航引擎        │
 │   platform/KeyEdge.cs 带「松开闩锁」的单次按键检测（见下） │
+│   platform/Repeat.cs  重读缓冲区 —— **唯一出口，逐作绕不过** │
 ├──────────────────────────────────────────────────────────┤
 │ L2 契约层（每作一个薄适配文件，固化 ABI）                  │
 │   contract/A11yHost.cs  共享层唯一可见的宿主              │
@@ -96,6 +97,7 @@ A11yFramework/
 │     └─ 常见问题.md               发布包内文档（跨作可复用）
 │
 ├─ platform/                       L1 平台层（冻结层，逐作不改）
+│  └─ Repeat.cs                    重读缓冲区：逐作层只能往里塞
 │  ├─ Speech.cs
 │  ├─ Nvda.cs
 │  ├─ Sapi.cs

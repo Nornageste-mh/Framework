@@ -30,6 +30,7 @@ PLACEHOLDER_FILES = [
     ("build/check-staged.ps1.template",          "tools/check-staged.ps1",            False),
     ("probe/run_probe.ps1.template",             "probe/run_probe.ps1",               False),
     ("probe/screenshot.ps1.template",            "probe/screenshot.ps1",              False),
+    ("tools/lint_repeat.ps1",                    "tools/lint_repeat.ps1",             False),
     ("templates/probe/ProbePlugin.cs.template",  "probe/plugin/ProbePlugin.cs",       True),
     ("templates/probe/Probe.csproj.template",    "probe/plugin/{ns}Probe.csproj",     False),
 ]
@@ -131,7 +132,9 @@ def main():
     # ⚠ KeyEdge.cs 也属于 L1：UiNav.cs 里的按键边沿检测直接引用它。
     #   0.1.0.0 的列表漏了它，导致新作骨架**第一次编译就失败**
     #   （CS0103: 当前上下文中不存在名称"KeyEdge"）。0.1.0.1 补上。
-    for fn in ("Speech.cs", "Nvda.cs", "Sapi.cs", "UiNav.cs", "KeyEdge.cs"):
+    # Repeat.cs 是「重读缓冲区」——0.1.1.0 起它属于 L1：
+    # 逐作层只能往里塞，不许绕过（同一个坑四个仓库里踩了两次）。
+    for fn in ("Speech.cs", "Nvda.cs", "Sapi.cs", "UiNav.cs", "KeyEdge.cs", "Repeat.cs"):
         text, _ = read(os.path.join(ROOT, "platform", fn))
         text = text.replace("namespace A11yFramework", "namespace " + a.ns)
         if "namespace " + a.ns not in text:
