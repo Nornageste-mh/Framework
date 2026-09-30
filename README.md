@@ -460,7 +460,8 @@ HarmonyX、Mono.Cecil、MonoMod、NVDA Controller Client）。
 ## 许可
 
 本仓库的**补丁框架代码与文档**（`platform/`、`contract/`、`templates/`、`build/`、`docs/`）
-由本项目的维护者编写，供制作同类无障碍补丁时复用。
+由本项目的维护者编写，供制作同类无障碍补丁时复用，采用 [MIT 许可](LICENSE) 发布。
+附加的署名要求、非官方声明与免责条款见 [NOTICE.md](NOTICE.md)。
 
 `licenses/` 下是**第三方组件**的许可证文本，版权归各自作者所有；
 其中 `THIRD-PARTY-NOTICES.example-*.txt` 是三作的原样范例，
@@ -479,3 +480,21 @@ HarmonyX、Mono.Cecil、MonoMod、NVDA Controller Client）。
 | [BelfryForAccessibility](https://github.com/Nornageste-mh/BelfryForAccessibility) | Mono / BepInEx 5 | 结构最新；最接近「新作起步形态」 |
 
 > 本仓库是这三作的公共部分，**不是任何一款游戏的补丁**，装进游戏不会有任何效果。
+
+---
+
+## 许可证
+
+本仓库的**代码与文档**采用 [MIT 许可](LICENSE) 发布。
+附加的**署名要求、非官方声明与免责条款**见 [NOTICE.md](NOTICE.md)。
+
+简要说明：
+
+- **可自由使用、修改、再分发**（含商用），但须标注出处 —— 本仓库地址与作者
+  Nornageste-mh；若你做了修改，须注明「已修改」，不得让人误以为修改版出自原作者。
+- **本项目为非官方第三方工具**：本仓库是独立开发的通用无障碍框架（视觉小说读屏补丁的平台层与契约层），不是任何一款游戏的补丁，与任何游戏开发商、发行商均无隶属关系，未获其授权或背书。本仓库不含任何游戏资源、剧本原文或反编译产物。
+- **按「现状」提供，不承担任何责任**：因使用本软件导致的游戏存档损坏、游戏崩溃、
+  账号受限、或与游戏厂商及任何第三方产生的争议与索赔，作者与贡献者均不负责。
+  是否使用请自行判断并自担风险。
+
+第三方组件的许可与出处详见 [NOTICE.md](NOTICE.md)。
