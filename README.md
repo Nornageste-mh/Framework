@@ -460,7 +460,7 @@ HarmonyX、Mono.Cecil、MonoMod、NVDA Controller Client）。
 ## 许可
 
 本仓库的**补丁框架代码与文档**（`platform/`、`contract/`、`templates/`、`build/`、`docs/`）
-由本项目的维护者编写，供制作同类无障碍补丁时复用，采用 [MIT 许可](LICENSE) 发布。
+由本项目的维护者编写，供制作同类无障碍补丁时复用，采用 [MIT 许可](LICENSE) 发布；
 附加的署名要求、非官方声明与免责条款见 [NOTICE.md](NOTICE.md)。
 
 `licenses/` 下是**第三方组件**的许可证文本，版权归各自作者所有；
@@ -483,10 +483,8 @@ HarmonyX、Mono.Cecil、MonoMod、NVDA Controller Client）。
 
 ---
 
-## 许可证
+## 许可
 
-本仓库的**代码与文档**采用 [MIT 许可](LICENSE) 发布。
-附加的**署名要求、非官方声明与免责条款**见 [NOTICE.md](NOTICE.md)。
 
 简要说明：
 
