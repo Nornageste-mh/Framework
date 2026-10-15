@@ -34,6 +34,7 @@ internal static class Program
     private static string _root;              // bin\
     private static string _stubDir;           // 带 Braille 的桩（对应 1.0.0.5）
     private static string _stubNoBrailleDir;  // 不带 Braille 的桩（对应 1.0.0.1）
+    private static string _stubMismatchDir;   // InitTTS 固定返回 1（版本不匹配）
     private static string _emptyDir;          // 空目录（模拟「没装争渡」）
     private static string _logPath;           // 桩 DLL 的调用日志
     private static string _dllPath;           // 当前桩 DLL 的完整路径
@@ -45,6 +46,7 @@ internal static class Program
         _root = args.Length > 0 ? args[0] : AppDomain.CurrentDomain.BaseDirectory;
         _stubDir = Path.Combine(_root, "stub");
         _stubNoBrailleDir = Path.Combine(_root, "stub_nobraille");
+        _stubMismatchDir = Path.Combine(_root, "stub_mismatch");
         _emptyDir = Path.Combine(_root, "stub_empty");
         _logPath = Path.Combine(_root, "calls.log");
 
@@ -57,6 +59,7 @@ internal static class Program
         {
             Prepare(_stubDir, "zdsr_stub.dll");
             Prepare(_stubNoBrailleDir, "zdsr_stub_nobraille.dll");
+            Prepare(_stubMismatchDir, "zdsr_stub_initmismatch.dll");
             Directory.CreateDirectory(_emptyDir);
         }
         catch (Exception e)
@@ -78,6 +81,9 @@ internal static class Program
         Case_Handshake_Retry_NotSpammed();
         Case_Stop();
         Case_Braille_Export_Presence();
+        Case_VersionMismatch_FallsThrough();
+        Case_VersionMismatch_AllCandidates();
+        Case_RegistryLookup();
 
         Console.WriteLine("### B. 按键描述解析（Hotkey）");
         Case_Hotkey_Parse();
@@ -283,8 +289,65 @@ internal static class Program
         End();
     }
 
-    // ---------------------------------------------------------------- B. Hotkey
+    // ------------------------------------------------ A2. 版本不匹配就换下一份
 
+    private static void Case_VersionMismatch_FallsThrough()
+    {
+        Begin("包内那份 dll 太旧（InitTTS=1）⇒ 自动换下一份候选，而不是判死");
+        Env("ZDSR_STUB_STATE", "4");
+        Env("ZDSR_STUB_INITRC", "0");
+        // 第一份是「版本不匹配」的桩，第二份是正常桩：应当落到第二份
+        UseDirs(_stubMismatchDir + ";" + _stubDir);
+
+        bool ok = A11yFramework.Zdsr.TestAvailable();
+        Check("TestAvailable() == true（换到了第二份）", ok);
+        Check("LoadedFrom 指向第二份（正常的那份）",
+              string.Equals(A11yFramework.Zdsr.LoadedFrom, _dllPath, StringComparison.OrdinalIgnoreCase));
+        Check("DllLoaded == true", A11yFramework.Zdsr.DllLoaded);
+        End();
+    }
+
+    private static void Case_VersionMismatch_AllCandidates()
+    {
+        Begin("所有候选都版本不匹配 ⇒ 判不可用，且原因写明版本不匹配");
+        Env("ZDSR_STUB_STATE", "4");
+        UseDirs(_stubMismatchDir);
+
+        bool ok = A11yFramework.Zdsr.TestAvailable();
+        Check("TestAvailable() == false", !ok);
+        Check("LastError 提到版本不匹配", Contains(A11yFramework.Zdsr.LastError, "版本不匹配"));
+        Check("Speak() 返回 false 且不抛异常", !A11yFramework.Zdsr.Speak("你好", true));
+        End();
+    }
+
+    private static void Case_RegistryLookup()
+    {
+        Begin("注册表查找争渡安装目录（装在非默认盘的用户靠它自动找到）");
+        var dirs = A11yFramework.Zdsr.RegistryInstallDirs();
+        Console.WriteLine("    注册表里找到 " + dirs.Count + " 条：" +
+                          (dirs.Count > 0 ? string.Join(" | ", dirs.ToArray()) : "(无)"));
+
+        // 本机装了争渡（HKLM 卸载项里有 DisplayName=争渡读屏、InstallLocation 指向安装目录），
+        // 所以这里断言「找得到且指向真实安装目录」。注册表里没有就只打印、不判失败 ——
+        // 这条用例是集成检查，不该让别的机器上的自检变红。
+        string known = @"C:\Program Files (x86)\zdsr\zdsr";
+        if (Directory.Exists(known))
+        {
+            bool hit = false;
+            foreach (string d in dirs)
+            {
+                if (string.Equals(d.TrimEnd('\\'), known, StringComparison.OrdinalIgnoreCase)) { hit = true; break; }
+            }
+            Check(@"注册表里找得到 " + known, hit);
+        }
+        else
+        {
+            Console.WriteLine("    （本机没有默认安装目录，跳过断言）");
+        }
+        End();
+    }
+
+    // ---------------------------------------------------------------- B. Hotkey
     /// <summary>自检用的扁平解析结果（Hotkey.Spec 是 internal 结构体，同程序集可直接用）。</summary>
     private struct Hk { public bool Ok; public string Key; public bool Alt, Ctrl, Shift; public string Why; }
 
@@ -372,11 +435,14 @@ internal static class Program
     private static void Env(string name, string value) { Environment.SetEnvironmentVariable(name, value); }
 
     /// <summary>把 Zdsr 的搜索范围钉在某个目录上（Zdsr 认 A11Y_ZDSR_DIR，见其注释）。</summary>
-    private static void UseDir(string dir)
+    private static void UseDir(string dir) { UseDirs(dir); }
+
+    /// <summary>多个目录用 ';' 分隔 —— 用来验证「这一份版本不匹配就换下一份」。</summary>
+    private static void UseDirs(string spec)
     {
-        Environment.SetEnvironmentVariable("A11Y_ZDSR_DIR", dir);
+        Environment.SetEnvironmentVariable("A11Y_ZDSR_DIR", spec);
         Environment.SetEnvironmentVariable("ZDSR_STUB_LOG", _logPath);
-        _dllPath = Path.Combine(dir, "ZDSRAPI_x64.dll");
+        _dllPath = Path.Combine(spec.Split(';')[spec.Split(';').Length - 1], "ZDSRAPI_x64.dll");
         A11yFramework.Zdsr.Reset();
     }
 

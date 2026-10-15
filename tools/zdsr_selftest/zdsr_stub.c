@@ -75,7 +75,12 @@ EXPORT int InitTTS(int type, const wchar_t *channelName, int bKeyDownInterrupt)
     stub_log("InitTTS:type=%d keyDownInterrupt=%d channel=%s",
              type, bKeyDownInterrupt ? 1 : 0,
              channelName == NULL ? "<NULL>" : "<NOT-NULL>");
+#ifdef ZDSR_STUB_FORCE_INITRC
+    /* 固定返回 1 = 版本不匹配：用来验证「这一份太旧就自动换下一份候选」 */
+    return ZDSR_STUB_FORCE_INITRC;
+#else
     return env_int("ZDSR_STUB_INITRC", 0);
+#endif
 }
 
 EXPORT int Speak(const wchar_t *text, int bInterrupt)

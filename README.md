@@ -235,13 +235,20 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 
 ### `Zdsr.cs` —— 争渡读屏（ZDSR）
 
-- 运行时按目录加载 `ZDSRAPI[_x64].dll`：**争渡安装目录 → 插件目录 → 游戏目录**
-  （官方建议直接用安装目录那份，跟着读屏一起升级）；**不随包分发**争渡的 dll
+- 运行时按**这个顺序**找 `ZDSRAPI[_x64].dll`：
+  **注册表登记的安装目录 → 默认安装目录 → 插件目录（随包那份兜底）→ 游戏目录**。
+  注册表那条是实查出来的（`争渡读屏 → InstallLocation`），所以装在非默认位置的玩家
+  不需要做任何事；官方建议优先用安装目录那份（跟着读屏一起升级）
+- **某一份报版本不匹配（`InitTTS=1`）时自动换下一份候选** —— 随包那份过期不会卡死玩家，
+  安装目录那份坏掉时也还有兜底
 - **可用性判据只能是 `GetSpeakState() ∈ {3,4}`**：未授权时 `Speak()` 照样返回 0，
   拿返回值当判据就是「日志一片绿、耳朵一片安静」
 - 读屏没运行/未授权 → 如实判不可用，让链子继续走 SAPI；掉线 5 秒后可恢复
-- `A11Y_ZDSR_DIR` 环境变量可把搜索范围钉在一个目录（排查用，自检也靠它）
+- `A11Y_ZDSR_DIR` 环境变量可把搜索范围钉在若干目录（用 `;` 分隔；自检也靠它）
+- 注册表用 advapi32 P/Invoke 直接读，不用 `Microsoft.Win32.Registry` —— 后者会把
+  NuGet 依赖带进平台层，而这一层必须对 Mono 与 IL2CPP 都零依赖
 - 点显器（`Braille` 导出）接口已封装但**尚未接入朗读通路** —— 本机没有点显器，接上去无法验证
+- **随包兜底那份 dll**（发布包里才有，仓库里没有）与致谢说明见 CHANGELOG 0.2.1.0
 
 ### `Hotkey.cs` —— 按键描述解析
 
@@ -434,6 +441,8 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 | `tools/assemble_from_sources.py` 可复现 | 重跑一遍后 `git status` 为空 | 平台层与 licenses/ 是**逐字节可复现**的，不是一次性手改的结果 |
 | `platform/Zdsr.cs` 的选路与失败路径 | `tools/zdsr_selftest/run.ps1`：桩 ZDSRAPI DLL 造出「DLL 不在 / 未授权 / 可用 / 掉线」，64 条断言 | 判据确实是 `GetSpeakState ∈ {3,4}`，未授权时**不会**被 `Speak()==0` 骗过 |
 | `platform/Hotkey.cs` 的按键解析 | 同上（20 条断言，Unity 的 `Input` 不参与） | `Alt+Shift+F9` 这类写法可用；`"0"` 这类 G3 陷阱被拒绝 |
+| 争渡安装目录能被自动找到 | 同上：`RegistryInstallDirs()` 读真实注册表 | 本机返回 `C:\Program Files (x86)\zdsr\zdsr`（`DisplayName=争渡读屏`） |
+| 旧 dll 不会卡死玩家 | 同上：第一份桩 `InitTTS` 固定返回 1，第二份正常 | 自动落到第二份；全都不匹配时给出可读原因 |
 | 争渡**真的出声** | 宿主程序直接编译 `platform/Speech.cs`+`Zdsr.cs` 对着真争渡说话，外部轮询 `GetSpeakState()` | 阳性：走争渡时 12/12 采样为 **3（正在朗读）**；阴性对照：同一句走 SAPI 时全程 **4（空闲）** |
 | 切换顺序（真环境） | 同一宿主调 `CycleAvailable()` 六次（NVDA 在跑、争渡已授权） | `争渡 → SAPI → 自动 → …` 且每次落盘；**从自动起第一下就到争渡** |
 
