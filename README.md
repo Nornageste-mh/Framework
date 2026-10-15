@@ -49,11 +49,13 @@ TransparentHer 就是这么丢掉 `[朗读]` 诊断日志块和 `UiNav.Diag()` �
 ```
 ┌──────────────────────────────────────────────────────────┐
 │ L1 平台层（逐字节复用，永不逐作改写）                      │
-│   platform/Speech.cs  后端链 Tolk→NVDA→SAPI + 定期重试    │
+│   platform/Speech.cs  后端链 Tolk→NVDA→争渡→SAPI + 定期重试 │
 │   platform/Nvda.cs    nvdaControllerClient.dll 探测与朗读 │
+│   platform/Zdsr.cs    争渡读屏 ZDSRAPI（运行时按目录加载） │
 │   platform/Sapi.cs    纯 P/Invoke + vtable 的 ISpVoice    │
 │   platform/UiNav.cs   Unity Selectable 通用导航引擎        │
 │   platform/KeyEdge.cs 带「松开闩锁」的单次按键检测（见下） │
+│   platform/Hotkey.cs  "F9"/"Alt+Shift+F9" 按键描述解析    │
 │   platform/Repeat.cs  重读缓冲区 —— **唯一出口，逐作绕不过** │
 ├──────────────────────────────────────────────────────────┤
 │ L2 契约层（每作一个薄适配文件，固化 ABI）                  │
@@ -135,6 +137,7 @@ A11yFramework/
 └─ tools/
    ├─ new_game.py                  从本仓库生成一个新作的骨架
    ├─ compile_check.ps1            ★ 机械验证「平台层无游戏类型依赖」
+   ├─ zdsr_selftest/               ★ 争渡后端 + 按键解析的机械自检（桩 DLL，不需要真读屏）
    └─ assemble_from_sources.py     从三个源仓库重新组装 platform/ 与 licenses/
 ```
 
@@ -222,10 +225,30 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 
 ### `Speech.cs` —— 后端链
 
-- 自带 NVDA / SAPI 两级，**不强依赖 Tolk**（Tolk 官方只有 MSVC 工程、无预编译二进制）
+- 自带 NVDA / 争渡 / SAPI 三级，**不强依赖 Tolk**（Tolk 官方只有 MSVC 工程、无预编译二进制）
 - 后端选择可被配置钉死（排查用）；**钉死后不可用不会回退**，这是刻意的
 - 初始化失败时把每个后端的结论串成一行日志（`Verdict()`），一眼看出「为什么全灭」
 - 朗读抛异常 → 后端降级为 `None` 并允许重试，**绝不把异常抛给游戏主循环**
+- `CycleAvailable()`：运行中切到下一个**当前可用**的后端，写回配置文件并返回播报文本
+  （由逐作层念出来 —— 平台层自己发声会绕过重读缓冲区）。「自动」这一档有三条被实测逼出来的规则，
+  见 CHANGELOG 0.2.0.0
+
+### `Zdsr.cs` —— 争渡读屏（ZDSR）
+
+- 运行时按目录加载 `ZDSRAPI[_x64].dll`：**争渡安装目录 → 插件目录 → 游戏目录**
+  （官方建议直接用安装目录那份，跟着读屏一起升级）；**不随包分发**争渡的 dll
+- **可用性判据只能是 `GetSpeakState() ∈ {3,4}`**：未授权时 `Speak()` 照样返回 0，
+  拿返回值当判据就是「日志一片绿、耳朵一片安静」
+- 读屏没运行/未授权 → 如实判不可用，让链子继续走 SAPI；掉线 5 秒后可恢复
+- `A11Y_ZDSR_DIR` 环境变量可把搜索范围钉在一个目录（排查用，自检也靠它）
+- 点显器（`Braille` 导出）接口已封装但**尚未接入朗读通路** —— 本机没有点显器，接上去无法验证
+
+### `Hotkey.cs` —— 按键描述解析
+
+- 支持 `F9` / `Alt+Shift+F9` / `Ctrl+Alt+F9` / 留空停用；左右两侧的修饰键按同一个处理
+- 拒绝纯数字（`Enum.TryParse("0")` 会成功但得到 `KeyCode.None`，流水线 G3）
+- 配置写错时返回人话原因，由调用方决定怎么记日志 —— 本文件不写日志、不引用 A11yHost，
+  所以能被独立自检程序直接编译
 
 ### `UiNav.cs` —— 通用导航引擎
 
@@ -409,6 +432,10 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 | 三作差异矩阵 | 对 `main` 克隆后按 SHA256 逐文件比对 + 归一化 `namespace` 后 `diff -U0` | 见流水线 §1.1 |
 | `tools/new_game.py` 能生成干净的骨架 | 冒烟测试：生成 54 个文件，**无残留占位符、无上一作标识**，`.ps1` 带 BOM，csproj 按路线正确裁剪 | 骨架生成这一环是通的 |
 | `tools/assemble_from_sources.py` 可复现 | 重跑一遍后 `git status` 为空 | 平台层与 licenses/ 是**逐字节可复现**的，不是一次性手改的结果 |
+| `platform/Zdsr.cs` 的选路与失败路径 | `tools/zdsr_selftest/run.ps1`：桩 ZDSRAPI DLL 造出「DLL 不在 / 未授权 / 可用 / 掉线」，64 条断言 | 判据确实是 `GetSpeakState ∈ {3,4}`，未授权时**不会**被 `Speak()==0` 骗过 |
+| `platform/Hotkey.cs` 的按键解析 | 同上（20 条断言，Unity 的 `Input` 不参与） | `Alt+Shift+F9` 这类写法可用；`"0"` 这类 G3 陷阱被拒绝 |
+| 争渡**真的出声** | 宿主程序直接编译 `platform/Speech.cs`+`Zdsr.cs` 对着真争渡说话，外部轮询 `GetSpeakState()` | 阳性：走争渡时 12/12 采样为 **3（正在朗读）**；阴性对照：同一句走 SAPI 时全程 **4（空闲）** |
+| 切换顺序（真环境） | 同一宿主调 `CycleAvailable()` 六次（NVDA 在跑、争渡已授权） | `争渡 → SAPI → 自动 → …` 且每次落盘；**从自动起第一下就到争渡** |
 
 | **没做过的验证** | 说明 |
 |---|---|
@@ -416,6 +443,8 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 | `build/`、`probe/` 脚本**真能跑通** | **没有**在任何一个新作上试过（需要游戏目录 + BepInEx + 实机） |
 | 「取最完整的一份」在 Mono 与 IL2CPP 两条路线上都成立 | 只是源码合并，**不等于**在任意一作上编得过、跑得起来 |
 | `UiNav` 的 partial 拆分没有行为改变 | 拆法是机械的（可见性一个都没动），但**没有实机回归** |
+| **游戏里那一声是不是争渡念的** | 争渡作为读屏本身也在念东西，从进程外无法把某句话归因到它。目前是「宿主测试证明通路真出声」＋「游戏内日志证明后端切到了争渡」两段拼起来 |
+| 修饰键写法在游戏里真按过 | 只在解析层与宿主里验过；`Alt+Shift+F9` 没在游戏里按过 |
 
 > 按流水线 §6 P4 的**诚实纪律**：CHANGELOG 里明确标注「尚未实机复测」的条目是允许的，
 > 把未验证的东西标成已验证是**不允许**的。

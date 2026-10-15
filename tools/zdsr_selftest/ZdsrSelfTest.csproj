@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A11yFramework 平台层的机械自检（控制台程序）。
+    它直接编译 ../../platform/Zdsr.cs 与 ../../platform/Hotkey.cs —— 同一份源码，
+    不是副本；这也是那两个文件不许引用 A11yHost / Plugin / BepInEx 的原因。
+
+    Hotkey.cs 需要 UnityEngine.KeyCode（枚举，编译期常量），
+    由 run.ps1 从游戏目录取得 UnityEngine.CoreModule.dll 的路径传进来：
+        -p:UnityManaged="<游戏>_Data\Managed"
+    跑法：tools\zdsr_selftest\run.ps1
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>ZdsrSelfTest</AssemblyName>
+    <RootNamespace>ZdsrSelfTest</RootNamespace>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0169;CS0414;CS0649;CS0219;MSB3277</NoWarn>
+    <Deterministic>true</Deterministic>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- 游戏目录：只为取 UnityEngine.CoreModule.dll（KeyCode 枚举）。 -->
+    <UnityManaged Condition="'$(UnityManaged)' == ''">D:\Steam\steamapps\common\钟塔 Belfry\The Belfry_Data\Managed</UnityManaged>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="..\..\platform\Zdsr.cs" />
+    <Compile Include="..\..\platform\Hotkey.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 只用到 KeyCode 这个枚举，不会调用 Unity 的原生方法。 -->
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(UnityManaged)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <!-- UnityEngine.Input 在「旧输入」模块里（UnityEngine.InputLegacyModule.dll）。 -->
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(UnityManaged)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

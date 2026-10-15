@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
     平台层自检 —— 证明 L1（platform\）**没有任何游戏类型依赖**。
 
@@ -78,6 +78,29 @@ if (-not (Select-String -LiteralPath (Join-Path $platform "UiNav.cs") -Pattern '
     Fail "UiNav.cs 不是 partial class —— 逐作区无法挂上去"
 }
 Ok "UiNav 已拆成 partial（引擎 + 逐作区）"
+
+# L1 文件清单必须齐（0.2.0.0 加的这两条）。
+# 为什么做成机械断言：assemble_from_sources.py 会**先删掉 platform\ 再按自己的清单重建**，
+# new_game.py 也按自己的清单往新作拷 —— 清单漏一个文件，平台层的新能力就被静默删掉，
+# 而且 git status 看起来还挺干净（流水线 §1.3 的「平台层单向退化」）。
+foreach ($need in @("Speech.cs", "Nvda.cs", "Zdsr.cs", "Sapi.cs", "Hotkey.cs",
+                    "UiNav.cs", "KeyEdge.cs", "Repeat.cs")) {
+    if (-not (Test-Path -LiteralPath (Join-Path $platform $need))) {
+        Fail ("platform\{0} 不在了 —— L1 清单被改过，或被某个只认旧清单的脚本重建过" -f $need)
+    }
+}
+Ok "L1 文件清单齐全（含 Zdsr.cs / Hotkey.cs）"
+
+if (-not (Select-String -LiteralPath (Join-Path $platform "Speech.cs") -Pattern 'CycleAvailable' -Quiet)) {
+    Fail "Speech.cs 里没有 CycleAvailable —— 运行中切换后端的能力被删掉了"
+}
+if (-not (Select-String -LiteralPath (Join-Path $platform "Zdsr.cs") -Pattern 'GetSpeakState' -Quiet)) {
+    Fail "Zdsr.cs 里没有 GetSpeakState —— 争渡后端的可用性判据被改掉了（判据必须是 3/4）"
+}
+if (-not (Select-String -LiteralPath (Join-Path $platform "Hotkey.cs") -Pattern 'IsAllDigits' -Quiet)) {
+    Fail "Hotkey.cs 里没有纯数字防护（流水线 G3：TryParse(""0"") 会成功但得到 KeyCode.None）"
+}
+Ok "争渡后端 / 切换后端 / 按键解析三个能力都在"
 
 # 重读缓冲区只允许一个出口：platform 下只有 Repeat.cs 能调 Speech.Speak。
 # 这个坑踩过两次（《钟塔》0.1.0.1「选项播报绕过了缓冲区」/《妹控计划》0.1.0.0 同款），

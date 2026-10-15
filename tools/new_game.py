@@ -134,7 +134,11 @@ def main():
     #   （CS0103: 当前上下文中不存在名称"KeyEdge"）。0.1.0.1 补上。
     # Repeat.cs 是「重读缓冲区」——0.1.1.0 起它属于 L1：
     # 逐作层只能往里塞，不许绕过（同一个坑四个仓库里踩了两次）。
-    for fn in ("Speech.cs", "Nvda.cs", "Sapi.cs", "UiNav.cs", "KeyEdge.cs", "Repeat.cs"):
+    # Zdsr.cs（争渡读屏后端）与 Hotkey.cs（按键描述解析）——0.2.0.0 起属于 L1：
+    # 两者都被 Speech.cs 直接引用，漏拷的后果与当年漏 KeyEdge.cs 一样 ——
+    # 新作骨架**第一次编译就失败**。行为自检见 tools\zdsr_selftest\。
+    for fn in ("Speech.cs", "Nvda.cs", "Sapi.cs", "Zdsr.cs", "Hotkey.cs",
+               "UiNav.cs", "KeyEdge.cs", "Repeat.cs"):
         text, _ = read(os.path.join(ROOT, "platform", fn))
         text = text.replace("namespace A11yFramework", "namespace " + a.ns)
         if "namespace " + a.ns not in text:

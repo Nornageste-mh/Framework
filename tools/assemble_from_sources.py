@@ -123,7 +123,11 @@ def finish(text, name):
 def build_platform():
     # KeyEdge.cs 按流水线 §1.2 被归成「belfry 的按键边沿检测」，
     # 但平台层的 UiNav.cs 引用它 14 处 —— 它其实是 L1，本仓库把它提升为冻结层。
-    for name in ("Speech.cs", "Nvda.cs", "Sapi.cs", "KeyEdge.cs"):
+    #
+    # Zdsr.cs（争渡读屏后端）与 Hotkey.cs（按键描述解析）是 0.2.0.0 新增的 L1 文件：
+    # **必须列在这里**。main() 会先把 platform\ 整个删掉再按这张表重建 ——
+    # 漏一个文件就等于把平台层的新能力删掉，而且 report 里只会少一行，不会报错。
+    for name in ("Speech.cs", "Nvda.cs", "Sapi.cs", "Zdsr.cs", "Hotkey.cs", "KeyEdge.cs"):
         text, _ = read_text(os.path.join(SRC_BEL, name))
         n = text.count("Plugin.")
         write_text(os.path.join(OUT, "platform", name), finish(text, name), False)
@@ -218,10 +222,38 @@ def build_uinav_split():
     return nl.join(game), nl
 
 
+def assert_sources_not_stale():
+    r"""组装**之前**先确认源仓库不比本仓库旧。
+
+    为什么要有这一道：本脚本会把 platform\ 删掉再重建，而它读的是三个补丁仓库的克隆。
+    如果那份克隆落后于平台层（例如克隆还停在引入争渡后端之前），跑一遍就会把
+    platform\Zdsr.cs、Hotkey.cs 与 Speech.cs 的 CycleAvailable **静默删掉** ——
+    这正是流水线 §1.3 说的「平台层单向退化」，而且退化完 git status 看起来还挺干净。
+    所以：宁可拒绝运行，也不许把新能力组装没。
+    """
+    need_files = ("Zdsr.cs", "Hotkey.cs")
+    for fn in need_files:
+        p = os.path.join(SRC_BEL, fn)
+        if not os.path.isfile(p):
+            raise SystemExit(
+                "源仓库太旧：%s 里没有 %s。\n"
+                "这会删掉平台层的新能力，已拒绝运行。\n"
+                "请先把三个补丁仓库的克隆更新到含争渡后端的提交（或改 --study 指向它们）。"
+                % (SRC_BEL, fn))
+
+    speech = os.path.join(SRC_BEL, "Speech.cs")
+    text, _ = read_text(speech)
+    if "CycleAvailable" not in text:
+        raise SystemExit(
+            "源仓库太旧：%s 里的 Speech.cs 没有 CycleAvailable（切换语音后端）。\n"
+            "跑下去会把平台层的这一能力删掉，已拒绝运行。\n" % speech)
+
+
 def main():
     # 只清掉本脚本**自己生成**的目录。
     # 绝不 rmtree 整棵树 —— 仓库里还有手写的 README / A11yHost.cs / 文档模板，
     # 删掉它们等于把人工成果一起清空（第一次跑这个脚本时就踩到了）。
+    assert_sources_not_stale()
     for sub in ("platform", "licenses"):
         d = os.path.join(OUT, sub)
         if os.path.isdir(d):
