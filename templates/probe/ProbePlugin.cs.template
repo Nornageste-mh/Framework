@@ -20,19 +20,25 @@ namespace {{NS}}Probe
     ///   1) BepInEx 能挂进《{{TITLE}}》
     ///   2) 关键 MonoBehaviour 在运行时到底在不在、叫什么名字
     ///   3) 我们打算挂的补丁点能不能被 Harmony 找到
-    /// 输出写到游戏目录下的 BepInEx\probe_belfry.log（纯文本，方便脚本读）。
+    /// 输出写到游戏目录下的 BepInEx\probe_{{PROCNAME}}.log（纯文本，方便脚本读）。
     /// </summary>
     [BepInPlugin(Guid, "{{TITLE}} A11y Probe", "0.0.0.1")]
     public class ProbePlugin : BaseUnityPlugin
     {
-        public const string Guid = "belfry.a11y.probe";
+        public const string Guid = "{{GUID}}.probe";
+        /// <summary>
+        /// 是否把场景树里控件上的文字也写进日志。
+        /// 默认 false：控件文字很可能就是台词，写进日志再分享出去等于再分发剧本。
+        /// 只在确有必要对名字时临时打开，分享日志前先删掉 text= / legacyText=。
+        /// </summary>
+        internal const bool DumpUiText = false;
         private static ManualLogSource L;
         private static string _dumpPath;
 
         private void Awake()
         {
             L = Logger;
-            _dumpPath = Path.Combine(Paths.GameRootPath, "BepInEx", "probe_belfry.log");
+            _dumpPath = Path.Combine(Paths.GameRootPath, "BepInEx", "probe_{{PROCNAME}}.log");
             File.WriteAllText(_dumpPath, "=== {{TITLE}} A11y Probe ===\n");
             Say("Awake: BepInEx 已挂载，游戏根目录 = " + Paths.GameRootPath);
 
@@ -125,20 +131,23 @@ namespace {{NS}}Probe
                            .Where(n => n != "Transform" && n != "RectTransform" && n != "CanvasRenderer");
             string cs = string.Join(",", comps);
             if (cs.Length > 0) sb.Append("  [" + cs + "]");
-            // 把可见文字一并带出来，方便对名字
-            var tmp = go.GetComponent<TMP_Text>();
-            if (tmp != null && !string.IsNullOrEmpty(tmp.text))
+            if (DumpUiText)
             {
-                string txt = tmp.text.Replace("\n", "\\n");
-                if (txt.Length > 60) txt = txt.Substring(0, 60) + "…";
-                sb.Append("  text=\"" + txt + "\"");
-            }
-            var ui = go.GetComponent<Text>();
-            if (ui != null && !string.IsNullOrEmpty(ui.text))
-            {
-                string txt = ui.text.Replace("\n", "\\n");
-                if (txt.Length > 60) txt = txt.Substring(0, 60) + "…";
-                sb.Append("  legacyText=\"" + txt + "\"");
+                // 控件上的文字很可能就是台词 —— 默认不写，原因见 DumpUiText 的说明。
+                var tmp = go.GetComponent<TMP_Text>();
+                if (tmp != null && !string.IsNullOrEmpty(tmp.text))
+                {
+                    string txt = tmp.text.Replace("\n", "\\n");
+                    if (txt.Length > 60) txt = txt.Substring(0, 60) + "…";
+                    sb.Append("  text=\"" + txt + "\"");
+                }
+                var ui = go.GetComponent<Text>();
+                if (ui != null && !string.IsNullOrEmpty(ui.text))
+                {
+                    string txt = ui.text.Replace("\n", "\\n");
+                    if (txt.Length > 60) txt = txt.Substring(0, 60) + "…";
+                    sb.Append("  legacyText=\"" + txt + "\"");
+                }
             }
             Say(sb.ToString());
             for (int i = 0; i < t.childCount; i++)
@@ -155,6 +164,8 @@ namespace {{NS}}Probe
         //   · 验证「有没有配音」「朗读有没有被触发」根本不需要原文，
         //     只需要长度和标志位。
         // 同理，选项文字也只记条数，不记内容。
+        // 场景树遍历（ProbePlugin.Walk）里的控件文字是唯一的例外，由
+        // ProbePlugin.DumpUiText 控制，默认关闭。
         private static string Shape(string s)
         {
             if (string.IsNullOrEmpty(s)) return "(空)";

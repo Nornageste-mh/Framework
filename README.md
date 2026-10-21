@@ -9,6 +9,12 @@
 >
 > 设计依据与证据基础：`docs/无障碍补丁流水线.md`
 
+> **免责声明**：本项目是非官方、非营利的第三方无障碍工具，与任何游戏开发商、发行商、
+> 版权方均无隶属、合作、授权或背书关系。本仓库不含任何游戏资源、剧本原文与反编译产物；
+> 使用前请自行购买游戏并遵守其服务条款与最终用户许可协议，**请勿用于传播盗版或破解**。
+> 若任何权利人认为本仓库内容不当，请通过 Issue 联系，我们核实后会调整或下线相关内容。
+> 完整条款见 [NOTICE.md](NOTICE.md)。
+
 ---
 
 ## 这个仓库是什么
@@ -34,13 +40,11 @@
 TransparentHer 就是这么丢掉 `[朗读]` 诊断日志块和 `UiNav.Diag()` 的。
 本仓库存在的意义就是止住它：**接口固化，平台层只抄不改。**
 
-> **仓库当前是私有的，这是临时状态。**
-> 仓库里只有自己写的框架代码、第三方许可证文本与工程文档 ——
-> **不含任何游戏资源、不含任何剧本原文、不含反编译产物**（见下面的「IP 与合规」），
-> 所以具备公开的条件。公开与否、什么时候公开，由维护者决定。
-> 真要公开之前，建议再跑一遍 `tools/compile_check.ps1` 与
-> `grep -ri "剧本原文特征串" .` 这类检查，并把 `licenses/` 里
-> 三作的 THIRD-PARTY-NOTICES 范例确认一遍（它们只是范例，不是最终发布用的清单）。
+> **本仓库已公开。** 仓库里只有自己写的框架代码、第三方许可证文本与工程文档 ——
+> **不含任何游戏资源、不含任何剧本原文**；也**不含反编译生成的代码文件、类型定义与方法体**
+> （仓库里出现的方法名 / 类名是说明补丁点所必需的**互操作事实**，见下面的「IP 与合规」）。
+> 使用本仓库制作补丁时需要**自备正版游戏**；提交前的机械守卫见
+> `build/check-staged.ps1` 与本文件同级的 `.gitignore` 第 1 节。
 
 ---
 
@@ -164,7 +168,7 @@ A11yFramework/
 
 ```
 python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
-    --guid mygame.a11y.reader --title 《我的游戏》 --route mono --out D:\work\MyGameA11y
+    --guid mygame.a11y.reader --title 《我的游戏》 --route mono --out .\MyGameA11y
 ```
 
 它做这些事：拷 `platform/` + `contract/`、替换 `namespace`、套用 `templates/`
@@ -438,7 +442,7 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 | 平台层**能挂上逐作 partial** | 用一份最小 `UiNav.Game.cs` 占位实现参与编译 | partial 拆分的接口是完整的 |
 | 三作差异矩阵 | 对 `main` 克隆后按 SHA256 逐文件比对 + 归一化 `namespace` 后 `diff -U0` | 见流水线 §1.1 |
 | `tools/new_game.py` 能生成干净的骨架 | 冒烟测试：生成 54 个文件，**无残留占位符、无上一作标识**，`.ps1` 带 BOM，csproj 按路线正确裁剪 | 骨架生成这一环是通的 |
-| `tools/assemble_from_sources.py` 可复现 | 重跑一遍后 `git status` 为空 | 平台层与 licenses/ 是**逐字节可复现**的，不是一次性手改的结果 |
+| `tools/assemble_from_sources.py` 可复现 | 源仓库处于组装时的提交，重跑一遍后 `git status` 为空 | 平台层与 licenses/ 是**逐字节可复现**的；`build/`、`probe/`、`templates/probe/` 下的模板已按新作通用化、改为手工维护，要重生成才加 `--refresh-generated` |
 | `platform/Zdsr.cs` 的选路与失败路径 | `tools/zdsr_selftest/run.ps1`：桩 ZDSRAPI DLL 造出「DLL 不在 / 未授权 / 可用 / 掉线」，64 条断言 | 判据确实是 `GetSpeakState ∈ {3,4}`，未授权时**不会**被 `Speak()==0` 骗过 |
 | `platform/Hotkey.cs` 的按键解析 | 同上（20 条断言，Unity 的 `Input` 不参与） | `Alt+Shift+F9` 这类写法可用；`"0"` 这类 G3 陷阱被拒绝 |
 | 争渡安装目录能被自动找到 | 同上：`RegistryInstallDirs()` 读真实注册表 | 本机返回 `C:\Program Files (x86)\zdsr\zdsr`（`DisplayName=争渡读屏`） |
@@ -471,7 +475,9 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 
 推论（必须遵守）：
 
-- 探针插件**不记录任何台词文本**，只写类型名、方法名、对象名与控件标签
+- 探针插件的 Harmony 钩子**不记录任何台词文本**，只写类型名、方法名、对象名与长度；
+  场景树遍历里的控件文字由 `ProbePlugin.DumpUiText` 单独控制，**默认关闭**，
+  打开后也只写前 60 字，分享日志前必须删掉 `text=` / `legacyText=`
 - `[朗读]` 诊断日志的产出物（`LogOutput.log`）**不得入库**
 - 需要复核原始日志时，在本机按 README「如何复现分析」重跑，**不提交**
 
@@ -505,7 +511,8 @@ HarmonyX、Mono.Cecil、MonoMod、NVDA Controller Client）。
 其中 `THIRD-PARTY-NOTICES.example-*.txt` 是三作的原样范例，
 **逐作发布时必须重写**（组件清单与版本不同）。
 
-**本仓库不含任何游戏资源、不含任何游戏的剧本原文、不含任何反编译产物。**
+**本仓库不含任何游戏资源、不含任何游戏的剧本原文，也不含反编译生成的代码文件、类型定义与方法体。**
+（仓库里出现的方法名 / 类名是说明补丁点所必需的互操作事实，不属于反编译产物。）
 
 简要说明：
 

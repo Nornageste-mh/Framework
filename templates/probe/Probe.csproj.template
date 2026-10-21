@@ -17,12 +17,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- 探针插件要跟游戏里的 BepInEx 版本对齐：引用游戏目录下已安装的 BepInEx 核心程序集。
+         若还没在游戏目录装 BepInEx，先跑一次 build.ps1 或手动装好。 -->
     <Reference Include="BepInEx">
-      <HintPath>D:\work\belfry_a11y\mod\bep_dl\BepInEx\core\BepInEx.dll</HintPath>
+      <HintPath>{{GAMEDIR}}\BepInEx\core\BepInEx.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="0Harmony">
-      <HintPath>D:\work\belfry_a11y\mod\bep_dl\BepInEx\core\0Harmony.dll</HintPath>
+      <HintPath>{{GAMEDIR}}\BepInEx\core\0Harmony.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

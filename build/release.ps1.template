@@ -2,7 +2,7 @@
     打发布 zip。
 
     用法：
-        cd D:\work\belfry_a11y\mod
+        cd <本文件所在的 mod 目录>
         .\build.ps1
         .\release.ps1
 

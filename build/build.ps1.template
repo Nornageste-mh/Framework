@@ -3,7 +3,7 @@
     可复现构建：下载依赖 → 编译插件 → 组装安装包
 
     用法：
-        cd D:\work\belfry_a11y\mod
+        cd <本文件所在的 mod 目录>
         .\build.ps1
 
     产物：
@@ -26,8 +26,8 @@ param(
     # 依赖版本（如需升级改这里）
     [string]$BepInExVersion = "5.4.23.5",
     [string]$NvdaClientUrl  = "https://download.nvaccess.org/releases/stable/nvda_2026.2_controllerClient.zip",
-    # 复用本机已有的下载缓存（上一个仓库留下的），没有就自己下
-    [string]$CacheDir = "D:\work\transparenther_a11y\mod"
+    # 复用已有的下载缓存（可选）：设 A11Y_CACHE=某个 mod 目录即可，没有就自己下
+    [string]$CacheDir = "$env:A11Y_CACHE"
 )
 
 $ErrorActionPreference = "Stop"
@@ -55,8 +55,8 @@ if (Test-Path -LiteralPath (Join-Path $bepDir "BepInEx\core\BepInEx.dll")) {
     Ok "已存在，跳过下载"
 } else {
     if (-not (Test-Path -LiteralPath $bepZip)) {
-        $cacheZip = Join-Path $CacheDir "dl\BepInEx_win_x64_$BepInExVersion.zip"
-        if (Test-Path -LiteralPath $cacheZip) {
+        $cacheZip = if ($CacheDir) { Join-Path $CacheDir "dl\BepInEx_win_x64_$BepInExVersion.zip" } else { "" }
+        if ($cacheZip -and (Test-Path -LiteralPath $cacheZip)) {
             Copy-Item $cacheZip $bepZip -Force
             Ok "复用缓存 $cacheZip"
         } else {
@@ -81,8 +81,8 @@ if (Test-Path -LiteralPath $nvdaDir) {
 if ($nvdaDll) {
     Ok "已存在，跳过下载"
 } else {
-    $cacheNvda = Join-Path $CacheDir "nvda_dl"
-    if (Test-Path -LiteralPath $cacheNvda) {
+    $cacheNvda = if ($CacheDir) { Join-Path $CacheDir "nvda_dl" } else { "" }
+    if ($cacheNvda -and (Test-Path -LiteralPath $cacheNvda)) {
         New-Item -ItemType Directory -Force -Path $nvdaDir | Out-Null
         Copy-Item (Join-Path $cacheNvda "*") $nvdaDir -Recurse -Force
         Ok "复用缓存 $cacheNvda"

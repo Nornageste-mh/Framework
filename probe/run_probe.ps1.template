@@ -10,8 +10,9 @@ public class WinB {
 "@
 
 $G = '{{GAMEDIR}}'
-$P = 'D:\work\belfry_a11y\probe'
-$log = "$G\BepInEx\probe_belfry.log"
+# $P = 本脚本所在目录（展开骨架后就是新作的 probe\）
+$P = $PSScriptRoot
+$log = "$G\BepInEx\probe_{{PROCNAME}}.log"
 $beplog = "$G\BepInEx\LogOutput.log"
 $VK_RETURN = 0x0D; $VK_SPACE = 0x20; $VK_ESC = 0x1B
 
@@ -32,7 +33,9 @@ Remove-Item $beplog -ErrorAction SilentlyContinue
 Write-Output "已放入 BepInEx\plugins\"
 
 Write-Output "=== 启动游戏 ==="
-Start-Process "steam://rungameid/2373260"
+# 直接启动游戏自己的可执行文件；若游戏必须经 Steam 启动（有 DRM 校验），
+# 把下面这行换成： Start-Process "steam://rungameid/<换成该游戏的 Steam AppID>"
+Start-Process (Join-Path $G '{{EXE}}') -WorkingDirectory $G
 
 $proc = $null
 for ($i = 0; $i -lt 40; $i++) {
@@ -60,7 +63,7 @@ Write-Output "=== BepInEx LogOutput.log 前 60 行 ==="
 Get-Content $beplog -ErrorAction SilentlyContinue -TotalCount 60
 
 Write-Output ""
-Write-Output "=== probe_belfry.log 行数: $((Get-Content $log -ErrorAction SilentlyContinue | Measure-Object).Count) ==="
+Write-Output "=== $log 行数: $((Get-Content $log -ErrorAction SilentlyContinue | Measure-Object).Count) ==="
 Get-Content $log -ErrorAction SilentlyContinue -TotalCount 80
 
 Write-Output ""

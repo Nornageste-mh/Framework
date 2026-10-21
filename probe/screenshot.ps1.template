@@ -1,5 +1,5 @@
 ﻿param(
-  [string]$Out = 'D:\work\belfry_a11y\probe\shot.png',
+  [string]$Out = "$env:TEMP\shot.png",
   [string]$ProcName = '{{PROCNAME}}'
 )
 Add-Type -AssemblyName System.Drawing

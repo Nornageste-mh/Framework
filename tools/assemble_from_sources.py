@@ -3,8 +3,10 @@ r"""从三个已发布仓库**重新组装** A11yFramework 的 L1 平台层与 l
 
     python tools/assemble_from_sources.py --study <三个仓库的克隆根目录>
 
-注意：本脚本只重写 platform\ 与 licenses\，**不会碰手写的**
-README / contract/A11yHost.cs / templates/game/*.template。
+注意：本脚本默认只重写 platform\ 与 licenses\，**不会碰手写的**
+README / contract/A11yHost.cs / templates/game/*.template，也不会碰已按新作
+通用化、改为手工维护的 build\ / probe\ / templates\probe\ 模板 ——
+要重新生成那三处，加 --refresh-generated（会覆盖手改内容，慎用）。
 
 原始说明：从三个已发布仓库组装 A11yFramework（可复用的平台层 + 契约层）。
 
@@ -21,8 +23,12 @@ import argparse
 
 _ap = argparse.ArgumentParser(
     description="从三个已发布仓库重新组装 L1 平台层与 licenses\\（会覆盖 platform\\ 与 licenses\\）")
-_ap.add_argument("--study", default=r"D:\work\a11y-study",
-                 help="三个仓库克隆的根目录，下面应有 belfry / noexistence / transparenther")
+_ap.add_argument("--study", default=os.environ.get("A11Y_STUDY")
+                 or os.path.join(os.path.expanduser("~"), "a11y-study"),
+                 help="三个仓库克隆的根目录，下面应有 belfry / noexistence / transparenther"
+                      "；默认读环境变量 A11Y_STUDY，否则 ~/a11y-study")
+_ap.add_argument("--refresh-generated", action="store_true",
+                 help="连 build\\ / probe\\ / templates\\probe\\ 模板一起重生成（会覆盖手工改动）")
 _ap.add_argument("--out", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                  help="A11yFramework 仓库根目录，默认本脚本的上一级")
 _ARGS = _ap.parse_args()
@@ -283,30 +289,33 @@ def main():
             seen.setdefault(out_fn, (h, sp))
             copy_bytes(sp, os.path.join(OUT, "licenses", out_fn))
 
-    # 顺序有讲究：长串先替换，否则 "The Belfry" 会先把 "The Belfry_Data" 咬掉一半。
-    SUBS = [
-        ("D:\\Steam\\steamapps\\common\\钟塔 Belfry", "{{GAMEDIR}}"),
-        ("BelfryA11y", "{{NS}}"),
-        ("BelfryGameDir", "{{GAME}}GameDir"),
-        ("The Belfry.exe", "{{EXE}}"),
-        ("The Belfry_Data", "{{DATADIR}}"),
-        ("The Belfry", "{{PROCNAME}}"),
-        ("Belfry A11y Probe", "{{TITLE}} A11y Probe"),
-        ("《钟塔》", "《{{TITLE}}》"),
-    ]
-    copy_text(os.path.join(BEL, r"mod\build.ps1"), os.path.join(OUT, "build", "build.ps1.template"), SUBS)
-    copy_text(os.path.join(BEL, r"mod\release.ps1"), os.path.join(OUT, "build", "release.ps1.template"), SUBS)
-    copy_text(os.path.join(BEL, r"mod\tools\makezip.ps1"), os.path.join(OUT, "build", "makezip.ps1.template"))
-    copy_text(os.path.join(BEL, r"tools\check-staged.ps1"), os.path.join(OUT, "build", "check-staged.ps1.template"))
-    for fn in ("run_probe.ps1", "screenshot.ps1"):
-        sp = os.path.join(BEL, "probe", fn)
-        if os.path.isfile(sp):
-            copy_text(sp, os.path.join(OUT, "probe", fn + ".template"), SUBS)
-    copy_text(os.path.join(BEL, r"probe\plugin\ProbePlugin.cs"),
-              os.path.join(OUT, "templates", "probe", "ProbePlugin.cs.template"), SUBS)
-    copy_text(os.path.join(BEL, r"probe\plugin\BelfryA11yProbe.csproj"),
-              os.path.join(OUT, "templates", "probe", "Probe.csproj.template"), SUBS)
-    copy_bytes(os.path.join(BEL, ".gitattributes"), os.path.join(OUT, ".gitattributes"))
+    if _ARGS.refresh_generated:
+        # 顺序有讲究：长串先替换，否则 "The Belfry" 会先把 "The Belfry_Data" 咬掉一半。
+        SUBS = [
+            ("D:\\Steam\\steamapps\\common\\钟塔 Belfry", "{{GAMEDIR}}"),
+            ("BelfryA11y", "{{NS}}"),
+            ("BelfryGameDir", "{{GAME}}GameDir"),
+            ("The Belfry.exe", "{{EXE}}"),
+            ("The Belfry_Data", "{{DATADIR}}"),
+            ("The Belfry", "{{PROCNAME}}"),
+            ("Belfry A11y Probe", "{{TITLE}} A11y Probe"),
+            ("《钟塔》", "《{{TITLE}}》"),
+        ]
+        copy_text(os.path.join(BEL, r"mod\build.ps1"), os.path.join(OUT, "build", "build.ps1.template"), SUBS)
+        copy_text(os.path.join(BEL, r"mod\release.ps1"), os.path.join(OUT, "build", "release.ps1.template"), SUBS)
+        copy_text(os.path.join(BEL, r"mod\tools\makezip.ps1"), os.path.join(OUT, "build", "makezip.ps1.template"))
+        copy_text(os.path.join(BEL, r"tools\check-staged.ps1"), os.path.join(OUT, "build", "check-staged.ps1.template"))
+        for fn in ("run_probe.ps1", "screenshot.ps1"):
+            sp = os.path.join(BEL, "probe", fn)
+            if os.path.isfile(sp):
+                copy_text(sp, os.path.join(OUT, "probe", fn + ".template"), SUBS)
+        copy_text(os.path.join(BEL, r"probe\plugin\ProbePlugin.cs"),
+                  os.path.join(OUT, "templates", "probe", "ProbePlugin.cs.template"), SUBS)
+        copy_text(os.path.join(BEL, r"probe\plugin\BelfryA11yProbe.csproj"),
+                  os.path.join(OUT, "templates", "probe", "Probe.csproj.template"), SUBS)
+        copy_bytes(os.path.join(BEL, ".gitattributes"), os.path.join(OUT, ".gitattributes"))
+    else:
+        print("build\\ / probe\\ / templates\\probe\\ 模板：手工维护，未重生成（要重生成加 --refresh-generated）")
 
     # 组装完再扫一遍：模板里不该残留上一作的名字。
     # 第一次组装就漏掉了进程名 'The Belfry'、'The Belfry_Data' 与探针里的

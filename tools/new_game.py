@@ -9,7 +9,7 @@ r"""从 A11yFramework 生成一个新作的骨架。
 
 用法：
     python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
-        --guid mygame.a11y.reader --title 《我的游戏》 --route mono --out D:\work\MyGameA11y
+        --guid mygame.a11y.reader --title 《我的游戏》 --route mono --out .\MyGameA11y
 """
 import argparse
 import os
@@ -95,7 +95,8 @@ def main():
     ap.add_argument("--version", default="0.1.0.0", help="纯数字四段版本号")
     ap.add_argument("--display", default=None, help="BepInEx 显示名，默认由 --title 推")
     ap.add_argument("--datadir", default=None, help="<Game>_Data 目录名，默认按 --exe 推")
-    ap.add_argument("--gamedir", default=r"D:\Steam\steamapps\common\<游戏目录>")
+    ap.add_argument("--gamedir", default="",
+                    help="游戏安装目录；不给则生成的 csproj 与脚本保留 <游戏目录> 占位，需自行填")
     a = ap.parse_args()
 
     if not os.path.isdir(os.path.join(ROOT, "platform")):
@@ -123,7 +124,7 @@ def main():
         "{{VERSION}}": a.version,
         "{{DATADIR}}": datadir,
         "{{PROCNAME}}": procname,
-        "{{GAMEDIR}}": a.gamedir,
+        "{{GAMEDIR}}": a.gamedir or r"<游戏目录>",
     }
 
     made = []
@@ -191,7 +192,8 @@ def main():
     # 生成新作时把它的默认 -GameDir 换成新作自己的目录。
     # 注意保留 BOM —— 它是 .ps1，PS 5.1 读无 BOM 的中文脚本会直接语法错误。
     cc_text, cc_bom = read(os.path.join(ROOT, "tools", "compile_check.ps1"))
-    cc_text = cc_text.replace(r"D:\Steam\steamapps\common\钟塔 Belfry", a.gamedir)
+    if a.gamedir:
+        cc_text = cc_text.replace("$env:A11Y_GAMEDIR", a.gamedir)
     write(os.path.join(out, "tools", "compile_check.ps1"), cc_text, True)
 
     # README 骨架（流水线 §6 P7 的节名，逐作填内容）

@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
     平台层自检 —— 证明 L1（platform\）**没有任何游戏类型依赖**。
 
@@ -15,7 +15,7 @@
 
     用法：
         .\tools\compile_check.ps1
-        .\tools\compile_check.ps1 -GameDir "D:\Steam\steamapps\common\钟塔 Belfry"
+        .\tools\compile_check.ps1 -GameDir "C:\Program Files (x86)\Steam\steamapps\common\<游戏目录>"
         .\tools\compile_check.ps1 -Keep          # 保留临时工程，便于看编译错误
 
     注意：本脚本必须保存为 UTF-8 **带 BOM** —— Windows PowerShell 5.1
@@ -25,7 +25,8 @@
 param(
     # 借一个已安装的游戏来取 UnityEngine / TMPro / BepInEx 的引用。
     # 平台层不引用任何游戏类型，所以用哪个游戏都可以。
-    [string]$GameDir = "D:\Steam\steamapps\common\钟塔 Belfry",
+    # 默认读环境变量 A11Y_GAMEDIR；也可以用 -GameDir 显式指定。
+    [string]$GameDir = "$env:A11Y_GAMEDIR",
     [string]$BepInExCore = "",
     [switch]$Keep
 )

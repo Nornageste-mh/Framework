@@ -24,6 +24,66 @@
 | 0.1.0.2 | 2026-09-27 | **修 `.gitignore` 的行内注释 bug** —— 11 条规则全部静默失效，第三方二进制与发布 zip 可以照常入库（《妹控计划》发布时实测中招） |
 | 0.1.0.1 | 2026-09-27 | 界面标签四钩子（文本噪声 / 逐作标签 / 组名 / 组序）+ 进组播报全组总览；修掉新作骨架的两个致命 bug（漏拷 KeyEdge.cs、csproj 注释里的连续减号） |
 | 0.1.0.0 | 待填 | 从三个已发布仓库逆向固化的平台层 + 契约层初版 |
+| 未发版 | 2026-10-21 | 公开前修订：免责声明与许可口径、探针文本转储默认关闭、脚本通用化与本机路径脱敏 |
+
+---
+
+## 未发版 — 公开前修订（2026-10-21）
+
+仓库由私有转为公开，做了一轮对外发布前必须做的修订。**不改任何行为**，
+只改「公开后会不会被人指出问题」的部分：
+
+### 一、声明与口径
+
+- `README.md` 顶部**新增免责声明**（非官方 / 无隶属未获授权 / 不含游戏资源与剧本原文 /
+  需自备正版 / 反对盗版传播 / 收到权利人异议即调整或下线），完整条款仍在 `NOTICE.md`。
+- `README.md` 原「**仓库当前是私有的，这是临时状态**」整段改写为公开口径。
+- 「不含反编译产物」这句**精确化**：不含反编译**生成的代码文件、类型定义与方法体**；
+  仓库里出现的方法名 / 类名是说明补丁点所必需的**互操作事实**，不属于反编译产物。
+  原来的写法容易被读成「连反编译得到的事实也没有」，那是不成立的。
+- `README.md` 的「证据的 IP 红线」里，探针只记 `(len=N)` 的说法与
+  `ProbePlugin.Walk` 的实际行为不一致，已按下面第二节改为如实描述。
+- `docs/无障碍补丁流水线.md` 的「BepInEx 是 MIT，不是 LGPL」**改掉** ——
+  那是被当作合规指引照抄的一行，正确说法是 **BepInEx 5 是 MIT、BepInEx 6 才是 LGPL-2.1**
+  （与本仓库 README 的「合规」节一致）。
+
+### 二、探针的文本转储
+
+- `templates/probe/ProbePlugin.cs.template` 的 `Walk()` 原本会把控件上的文字截 60 字写进日志，
+  与同文件「绝不把台词原文写进日志」的注释、README 的声明都冲突。
+  现在**默认关闭**（新增 `ProbePlugin.DumpUiText = false`），注释也改成如实描述。
+- 探针日志文件名从固定的 `probe_belfry.log` 改为 `probe_{{PROCNAME}}.log`；
+  插件 GUID 从 `belfry.a11y.probe` 改为 `{{GUID}}.probe`。
+
+### 三、通用化（新作不该被上一作的标识绑住）
+
+- `probe/run_probe.ps1.template`：`$P` 改为 `$PSScriptRoot`；启动游戏改为启动
+  `<游戏目录>\<可执行文件>`，不再硬编码《钟塔》的 Steam AppID（必须经 Steam 启动的
+  游戏按注释里的一行换成 `steam://rungameid/<AppID>`）。
+- `probe/screenshot.ps1.template`：`$Out` 默认值改为 `$env:TEMP\shot.png`。
+- `build/build.ps1.template`：`$CacheDir` 默认值改为 `$env:A11Y_CACHE`（未设即不启用缓存，
+  相应判断都加了空值守卫）；用法注释里的本机路径改为占位。
+- `build/release.ps1.template`：同上（注释）。
+- `templates/probe/Probe.csproj.template`：BepInEx / 0Harmony 的 `HintPath` 改为
+  `{{GAMEDIR}}\BepInEx\core\*.dll`（引用游戏目录里已装好的 BepInEx），
+  不再指向作者本机的另一个仓库。
+- `tools/compile_check.ps1`：`-GameDir` 默认值改为 `$env:A11Y_GAMEDIR`；
+  `tools/new_game.py` 生成新作时按 `--gamedir` 覆写该默认值（`--gamedir` 默认改为空，
+  不给则保留 `<游戏目录>` 占位）。
+
+### 四、脚本与文档里的本机路径
+
+- `tools/assemble_from_sources.py`：`--study` 默认值改为 `$env:A11Y_STUDY` → `~/a11y-study`；
+  **新增 `--refresh-generated`**：`build/`、`probe/`、`templates/probe/` 下的模板已按新作
+  通用化、改为手工维护，默认不再被重新生成覆盖（要重新生成才加这个开关）。
+  这也让「重跑一遍 `git status` 为空」这条承诺与实际行为一致。
+- 文档里作者本机的绝对路径（`docs/无障碍补丁流水线.md` 末尾的克隆位置、
+  `README.md` 的示例输出目录、`new_game.py` 的 docstring 示例）全部改为占位/相对路径。
+- `.gitignore` 增 `__pycache__/` 与 `*.pyc`（跑 `py_compile` 会留下）。
+
+> 本次修订**没有**改动平台层行为（`platform/` 下只删路径、不改逻辑）、契约层（`contract/`）
+> 与 `licenses/` 下的第三方文本；也**没有**删掉三作的补丁点汇总表 ——
+> 那些信息在三个公开姊妹仓里本来就有，删掉只会丢知识。
 
 ---
 
