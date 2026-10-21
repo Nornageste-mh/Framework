@@ -45,7 +45,7 @@ NVDA Controller Client、UnityDoorstop 等也不带。
 >   二进制重新列一遍（范例见下）。
 > - **Tolk** 是可选依赖（玩家自备 `Tolk.dll`）。上游 releases 有 CI 构建的 `tolk.zip`，
 >   但只有 `master` 分支、没有版本 tag（引用时写提交号）。上游许可是 **LGPL-3.0**
->   （`ndarilek/tolk` 的 `LICENSE.txt`），不是 BSD-3-Clause（那是其旧依赖 Capstone 的许可）。
+>   （`ndarilek/tolk` 的 `LICENSE.txt`）。
 >   **本仓库不随附**，因此这里没有单列它的文本 —— LGPL-3.0 用的是同一份标准文本，
 >   随包时可用 `LGPL-3.0-Il2CppInterop.txt` 一份代替，并自行补上来源与修改说明。
 > - **争渡读屏的 `ZDSRAPI.dll` / `ZDSRAPI_x64.dll` 是专有软件**（非开源、本项目未取得
@@ -65,6 +65,5 @@ NVDA Controller Client、UnityDoorstop 等也不带。
 
 三份范例的组件与版本各不相同，**逐作发布时必须重写**，不要直接抄；三份都单列了
 争渡 ZDSRAPI（专有、非开源、**未取得书面许可**；两份 Mono 范例是第 8 项，IL2CPP 那份
-是独立小节）。范例里给出的再分发依据
-来自争渡官方 API 文档，属姊妹仓各自的分发决定，**不代表本框架的建议**；本框架不随附
+是独立小节）。范例里给出的再分发依据来自争渡官方 API 文档，属姊妹仓各自的分发决定，**不代表本框架的建议**；本框架不随附
 该 DLL，随包与否请自行取得授权并自负责任。
