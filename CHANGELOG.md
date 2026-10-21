@@ -19,7 +19,7 @@
 | 版本 | 日期 | 要点 |
 |---|---|---|
 | 0.2.1.0 | 2026-10-16 | **争渡 dll 自动定位**（读注册表登记的安装目录）+ **旧 dll 自动跳过**（`InitTTS=1` → 换下一份候选）+ `A11Y_ZDSR_DIR` 支持多目录；自助检 **71 条** |
-| 0.2.0.0 | 2026-10-15 | **新增争渡读屏（ZDSR）后端**（`platform/Zdsr.cs`）+ **运行中切换后端**（`platform/Hotkey.cs` / `Speech.CycleAvailable`）+ 机械自检 `tools/zdsr_selftest/`（64 条断言，桩 DLL 驱动，不需要真读屏） |
+| 0.2.0.0 | 2026-10-15 | **新增争渡读屏（ZDSR）后端**（`platform/Zdsr.cs`）+ **运行中切换后端**（`platform/Hotkey.cs` / `Speech.CycleAvailable`）+ 机械自检 `tools/zdsr_selftest/`（64 条断言，桩 DLL 驱动，不需要真读屏；0.2.1.0 增至 71 条） |
 | 0.1.1.0 | 2026-09-27 | **重读缓冲区提升为 L1**（`platform/Repeat.cs`）+ `lint_repeat.ps1` 静态断言：逐作层绕不过去。同一个坑在四个仓库里踩了两次 |
 | 0.1.0.2 | 2026-09-27 | **修 `.gitignore` 的行内注释 bug** —— 11 条规则全部静默失效，第三方二进制与发布 zip 可以照常入库（《妹控计划》发布时实测中招） |
 | 0.1.0.1 | 2026-09-27 | 界面标签四钩子（文本噪声 / 逐作标签 / 组名 / 组序）+ 进组播报全组总览；修掉新作骨架的两个致命 bug（漏拷 KeyEdge.cs、csproj 注释里的连续减号） |
@@ -80,6 +80,13 @@
 - 文档里作者本机的绝对路径（`docs/无障碍补丁流水线.md` 末尾的克隆位置、
   `README.md` 的示例输出目录、`new_game.py` 的 docstring 示例）全部改为占位/相对路径。
 - `.gitignore` 增 `__pycache__/` 与 `*.pyc`（跑 `py_compile` 会留下）。
+- `tools/zdsr_selftest/run.ps1` 与 `ZdsrSelfTest.csproj` 不再硬编码游戏目录：改用
+  `-GameDir` / 环境变量 `A11Y_GAME_DIR`（直接构建 csproj 时用 `/p:UnityManaged=…`
+  或 `A11Y_UNITY_MANAGED`），gcc 走 `-Gcc` / `A11Y_GCC` / PATH。
+- **有意保留的一条字面量**：`tools/assemble_from_sources.py` 的 SUBS 映射源必须与源仓库
+  里的字符串逐字一致（否则 `--refresh-generated` 匹配不到、模板不会替换），所以那里保留了
+  `D:\Steam\steamapps\common\钟塔 Belfry`。它是游戏安装路径、不含用户名；上一条所列的
+  是本机工作目录，与此不同。
 
 ### 五、公开前对抗式审核发现的缺口（同日补）
 
@@ -217,7 +224,7 @@
 返回值由环境变量控制）+ 一个直接编译 `platform/Zdsr.cs`、`platform/Hotkey.cs` 的控制台程序。
 
 ```
-pwsh -NoProfile -File .\tools\zdsr_selftest\run.ps1     # 64 条断言
+pwsh -NoProfile -File .\tools\zdsr_selftest\run.ps1     # 71 条断言
 ```
 
 覆盖：DLL 缺失 / 未授权（**桩故意让 Speak 返回 0，断言我们仍判失败**）/ 可用 / 参数逐个回显

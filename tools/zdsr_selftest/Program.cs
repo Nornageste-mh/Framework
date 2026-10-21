@@ -172,7 +172,7 @@ internal static class Program
         Env("ZDSR_STUB_SPEAKRC", "0");
         ClearLog();                       // 清在 TestAvailable 之前：InitTTS 就在那一步发生
         A11yFramework.Zdsr.TestAvailable();
-        bool a = A11yFramework.Zdsr.Speak("【 韩冬 】氧气只剩 30%。", false);
+        bool a = A11yFramework.Zdsr.Speak("【 角色名 】测试文本，含全角标点。", false);
         bool b = A11yFramework.Zdsr.Speak("第 1 个 选项", true);
         Thread.Sleep(50);
 
@@ -182,7 +182,7 @@ internal static class Program
         Check("InitTTS 的 type=0（读屏通道）", Contains(log, "InitTTS:type=0"));
         Check("InitTTS 的 keyDownInterrupt=0（按键不打断，否则推进键会掐断台词）", Contains(log, "keyDownInterrupt=0"));
         Check("InitTTS 的 channelName 传的是 NULL", Contains(log, "channel=<NULL>"));
-        Check("中文与全角标点原样送达（UTF-16 → LPWStr）", Contains(log, "Speak:text=【 韩冬 】氧气只剩 30%。"));
+        Check("中文与全角标点原样送达（UTF-16 → LPWStr）", Contains(log, "Speak:text=【 角色名 】测试文本，含全角标点。"));
         Check("排队朗读 interrupt=0", Contains(log, "Speak:interrupt=0"));
         Check("打断朗读 interrupt=1", Contains(log, "Speak:interrupt=1"));
         Check("两句都在日志里", CountOccurrences(log, "Speak:interrupt") == 2);

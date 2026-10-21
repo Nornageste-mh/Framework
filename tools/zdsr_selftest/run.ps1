@@ -16,15 +16,16 @@
     用法：
         .\tools\zdsr_selftest\run.ps1
         .\tools\zdsr_selftest\run.ps1 -Keep                        # 保留 bin\（看日志与桩 DLL）
-        .\tools\zdsr_selftest\run.ps1 -GameDir "D:\Steam\steamapps\common\钟塔 Belfry"
+        .\tools\zdsr_selftest\run.ps1 -GameDir "C:\Program Files (x86)\Steam\steamapps\common\<游戏目录>"
 
     注意：本脚本必须存为 UTF-8 **带 BOM**（PS 5.1 读无 BOM 脚本会按 GBK 解码并语法错误）。
 #>
 [CmdletBinding()]
 param(
-    [string]$Gcc = "",
-    # 借一个已安装的游戏取 UnityEngine.CoreModule.dll（Hotkey.cs 只用它的 KeyCode 枚举）
-    [string]$GameDir = "D:\Steam\steamapps\common\钟塔 Belfry",
+    [string]$Gcc = "$env:A11Y_GCC",
+    # 借一个已安装的游戏取 UnityEngine.CoreModule.dll（Hotkey.cs 只用它的 KeyCode 枚举）。
+    # 不给 -GameDir 时读环境变量 A11Y_GAME_DIR（指向游戏根目录）。
+    [string]$GameDir = "$env:A11Y_GAME_DIR",
     [switch]$Keep
 )
 
@@ -34,6 +35,10 @@ $out = Join-Path $here "bin"
 
 function Fail($msg) { Write-Host ""; Write-Host "FAIL  $msg" -ForegroundColor Red; exit 1 }
 function Ok($msg) { Write-Host "  ok  $msg" -ForegroundColor Green }
+
+if ([string]::IsNullOrEmpty($GameDir)) {
+    Fail "需要游戏目录：用 -GameDir 指定，或设环境变量 A11Y_GAME_DIR（只需要其中的 *_Data\Managed\UnityEngine.CoreModule.dll）"
+}
 
 Write-Host ""
 Write-Host "=== A11yFramework 平台层自检（Zdsr.cs / Hotkey.cs）===" -ForegroundColor Cyan
@@ -45,10 +50,9 @@ Write-Host "[1/3] 编桩 DLL（gcc）" -ForegroundColor Cyan
 if ([string]::IsNullOrEmpty($Gcc)) {
     $cmd = Get-Command gcc -ErrorAction SilentlyContinue
     if ($cmd) { $Gcc = $cmd.Source }
-    elseif (Test-Path "D:\tools\w64devkit\bin\gcc.exe") { $Gcc = "D:\tools\w64devkit\bin\gcc.exe" }
 }
 if ([string]::IsNullOrEmpty($Gcc) -or -not (Test-Path $Gcc)) {
-    Fail "找不到 gcc（用 -Gcc 指定；本机在 D:\tools\w64devkit\bin\gcc.exe）"
+    Fail "找不到 gcc：装一个 MinGW-w64（w64devkit 即可）并加进 PATH，或用 -Gcc / 环境变量 A11Y_GCC 指定 gcc.exe"
 }
 Ok "gcc: $Gcc"
 

@@ -23,8 +23,10 @@
     <NoWarn>CS0169;CS0414;CS0649;CS0219;MSB3277</NoWarn>
     <Deterministic>true</Deterministic>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <!-- 游戏目录：只为取 UnityEngine.CoreModule.dll（KeyCode 枚举）。 -->
-    <UnityManaged Condition="'$(UnityManaged)' == ''">D:\Steam\steamapps\common\钟塔 Belfry\The Belfry_Data\Managed</UnityManaged>
+    <!-- 游戏目录：只为取 UnityEngine.CoreModule.dll（KeyCode 枚举）。
+         由 run.ps1 用 -p:UnityManaged="<游戏>_Data\Managed" 传入；
+         直接构建本 csproj 时可设环境变量 A11Y_UNITY_MANAGED。 -->
+    <UnityManaged Condition="'$(UnityManaged)' == ''">$(A11Y_UNITY_MANAGED)</UnityManaged>
   </PropertyGroup>
 
   <ItemGroup>

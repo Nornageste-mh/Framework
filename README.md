@@ -40,7 +40,7 @@
 TransparentHer 就是这么丢掉 `[朗读]` 诊断日志块和 `UiNav.Diag()` 的。
 本仓库存在的意义就是止住它：**接口固化，平台层只抄不改。**
 
-> **本仓库已公开。** 仓库里只有自己写的框架代码、第三方许可证文本与工程文档 ——
+> **本仓库已按公开仓库的标准整理。** 仓库里只有自己写的框架代码、第三方许可证文本与工程文档 ——
 > **不含任何游戏资源、不含任何剧本原文**；也**不含反编译生成的代码文件、类型定义与方法体**
 > （仓库里出现的方法名 / 类名是说明补丁点所必需的**互操作事实**，见下面的「IP 与合规」）。
 > 使用本仓库制作补丁时需要**自备正版游戏**；提交前的机械守卫见
@@ -442,8 +442,8 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 | 平台层**能挂上逐作 partial** | 用一份最小 `UiNav.Game.cs` 占位实现参与编译 | partial 拆分的接口是完整的 |
 | 三作差异矩阵 | 对 `main` 克隆后按 SHA256 逐文件比对 + 归一化 `namespace` 后 `diff -U0` | 见流水线 §1.1 |
 | `tools/new_game.py` 能生成干净的骨架 | 冒烟测试：生成 54 个文件，**无残留占位符、无上一作标识**，`.ps1` 带 BOM，csproj 按路线正确裁剪 | 骨架生成这一环是通的 |
-| `tools/assemble_from_sources.py` 可复现 | 源仓库处于组装时的提交，重跑一遍后 `git status` 为空 | 平台层与 licenses/ 是**逐字节可复现**的；`build/`、`probe/`、`templates/probe/` 下的模板已按新作通用化、改为手工维护，要重生成才加 `--refresh-generated` |
-| `platform/Zdsr.cs` 的选路与失败路径 | `tools/zdsr_selftest/run.ps1`：桩 ZDSRAPI DLL 造出「DLL 不在 / 未授权 / 可用 / 掉线」，64 条断言 | 判据确实是 `GetSpeakState ∈ {3,4}`，未授权时**不会**被 `Speak()==0` 骗过 |
+| `tools/assemble_from_sources.py` 可复现 | 源仓库处于组装时的提交，重跑一遍后 `git status` 为空 | 重跑后这两部分逐字节一致、`git status` 为空；`build/`、`probe/`、`templates/probe/` 下的模板已按新作通用化、改为手工维护，要重生成才加 `--refresh-generated` |
+| `platform/Zdsr.cs` 的选路与失败路径 | `tools/zdsr_selftest/run.ps1`：桩 ZDSRAPI DLL 造出「DLL 不在 / 未授权 / 可用 / 掉线」，71 条断言（0.2.0.0 时 64 条，0.2.1.0 增至 71） | 判据确实是 `GetSpeakState ∈ {3,4}`，未授权时**不会**被 `Speak()==0` 骗过 |
 | `platform/Hotkey.cs` 的按键解析 | 同上（20 条断言，Unity 的 `Input` 不参与） | `Alt+Shift+F9` 这类写法可用；`"0"` 这类 G3 陷阱被拒绝 |
 | 争渡安装目录能被自动找到 | 同上：`RegistryInstallDirs()` 读真实注册表 | 本机返回 `C:\Program Files (x86)\zdsr\zdsr`（`DisplayName=争渡读屏`） |
 | 旧 dll 不会卡死玩家 | 同上：第一份桩 `InitTTS` 固定返回 1，第二份正常 | 自动落到第二份；全都不匹配时给出可读原因 |
