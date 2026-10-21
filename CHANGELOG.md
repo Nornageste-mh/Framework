@@ -108,6 +108,34 @@
 - 「挂载点的唯一**合法**来源」改为「唯一**权威**来源」（`README.md` 与流水线两处）：
   原文意思是「实测出来的、不许猜」，但「合法」容易被读成法律判断。
 
+### 六、第二轮审核（许可口径、脱敏与余额）
+
+- **BepInEx 的版本对应关系写反了一处**：`NOTICE.md` 组件表把 `BepInEx 5.4.23.5`
+  标成 LGPL-2.1。上游该 tag 的 `LICENSE` 是 MIT（`v5-lts` 线），LGPL-2.1 是 `master`
+  的 v6。已改为两行分别标明 5.x = MIT、6.x = LGPL-2.1，并写清
+  `licenses/MIT-BepInEx.txt` / `licenses/LGPL-2.1-BepInEx.txt` 各自对应哪个版本 ——
+  这样才和 `README.md`、`docs/无障碍补丁流水线.md` 与三份范例的说法一致。
+- `NOTICE.md` 的署名条款原用「均须」，与同一文件开头「不缩减 MIT」自相矛盾
+  （MIT 不允许附加署名条件）。改为**请求**，并明写「不是附加条件、不得解释为限制
+  MIT 已授予的权利」。
+- 新增 [`docs/licenses.md`](docs/licenses.md)：`licenses/` 里 25 份许可证原文 + 3 份通知
+  范例的逐文件索引（组件、许可、版权）。索引放在 `docs/` 而非 `licenses/`，因为后者由
+  组装脚本整份重建。
+- `tools/zdsr_selftest/run.ps1` 与 `ZdsrSelfTest.csproj` 不再硬编码游戏目录：
+  `-GameDir` / 环境变量 `A11Y_GAME_DIR`（直接构建 csproj 用 `/p:UnityManaged=…`
+  或 `A11Y_UNITY_MANAGED`）；gcc 走 `-Gcc` / `A11Y_GCC` / PATH。
+- `tools/zdsr_selftest/Program.cs` 的合成测试串不再用某个角色的名字（形态上像真台词），
+  改成中性占位，断言内容不变。
+- `templates/probe/Probe.csproj.template` 的 `NoWarn` 补 `CS0162`：
+  `DumpUiText` 是 `const false`，包在 `if` 里的代码会被判定为不可达。
+- 断言数口径统一：`README.md` 与 `CHANGELOG.md` 里的「64 条」标注为
+  「0.2.0.0 时 64 条、0.2.1.0 增至 71 条」，当前总数以 71 条为准。
+- **提交历史里的本机工作目录已重写脱敏**：早期提交的模板/文档里带过
+  `D:\work\…` 这样的作者本机路径，现已把所有提交（含两个 tag）中的该前缀
+  换成中性占位；`D:\Steam\steamapps\common\钟塔 Belfry` 这一条作为组装脚本的
+  映射源按字面量保留（它是游戏安装路径，不含用户名）。全部提交的邮箱已是
+  GitHub noreply 地址。
+
 > 本次修订**没有**改动平台层行为（`platform/` 只有注释变化）、契约层（`contract/`）。
 > `licenses/` 只是把三份 `THIRD-PARTY-NOTICES.example-*.txt` 同步到姊妹仓当前版本
 > （新增争渡 ZDSR 一项），其余许可证文本未动。也**没有**删掉三作的补丁点汇总表 ——

@@ -97,7 +97,7 @@ notices and license texts must be preserved.
 Il2CppInterop（LGPL-3.0）、Cpp2IL、AsmResolver、AssetRipper.*、Capstone.NET、Capstone
 （BSD-3-Clause）、Disarm、Iced、SemanticVersioning、uTinyRipper、Dobby（Apache-2.0）、
 .NET runtime 等）。这些工具只在本机制作补丁时使用，**本仓库不随附它们的二进制**；
-逐文件对应关系见 [`licenses/README.md`](licenses/README.md)。
+逐文件对应关系见 [`docs/licenses.md`](docs/licenses.md)。
 
 6. 关于反编译与资源解包 / On Decompilation and Asset Extraction
 --------------------------------------------------------------
