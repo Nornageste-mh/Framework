@@ -89,7 +89,7 @@ TransparentHer 就是这么丢掉 `[朗读]` 诊断日志块和 `UiNav.Diag()` �
 | `Plugin.CfgQuitConfirm` | `A11yHost.CfgQuitConfirm` | 危险操作二次确认 |
 | `Plugin.CfgQuitNames` | `A11yHost.CfgQuitNames` | 需确认的控件名 |
 
-平台层里**已经一处 `Plugin.` 引用都不剩**（`tools/compile_check.ps1` 会断言这件事）。
+平台层**代码里**已经一处 `Plugin.` 引用都不剩（注释里保留旧写法作说明；`tools/compile_check.ps1` 会剥掉注释后断言这件事）。
 
 ---
 
@@ -232,7 +232,7 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 
 ### `Speech.cs` —— 后端链
 
-- 自带 NVDA / 争渡 / SAPI 三级，**不强依赖 Tolk**（上游有 CI 构建的 `tolk.zip`，但只有 `master`
+- 自带 NVDA / 争渡 / SAPI 三级，**不强依赖 Tolk**（维护分支 `ndarilek/tolk` 有 CI 构建的 `tolk.zip`，但只有 `master`
   分支、没有版本 tag；Tolk 是 **LGPL-3.0**，随包分发须附许可全文与来源）
 - 后端选择可被配置钉死（排查用）；**钉死后不可用不会回退**，这是刻意的
 - 初始化失败时把每个后端的结论串成一行日志（`Verdict()`），一眼看出「为什么全灭」
@@ -294,9 +294,9 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 
 | 类别 | 《钟塔》 | 《不/存在的你，和我》 | 《透明的她与真实的我》 |
 |---|---|---|---|
-| 说话人包装 | `【 韩冬 】` → 剥掉 | — | — |
+| 说话人包装 | `【 角色A 】` → 剥掉 | — | — |
 | 遮蔽名 | `【 ?  ? 】` → 念「？？？」 | — | — |
-| 多人同框 | `【 许堇/韩冬 】` → 斜杠念成顿号 | — | — |
+| 多人同框 | `【 角色B/角色A 】` → 斜杠念成顿号 | — | — |
 | 富文本 ruby | — | `<ruby="注">正文</ruby>`（**正文与旁注都要读**，本作题眼） | — |
 | 抹除符号 | — | `█ ■ □` → 念「方块」 | — |
 | 行内注释 | — | `;; @wait 2` 之后不朗读 | — |
@@ -445,7 +445,7 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 | 平台层**无 `Plugin.` 引用** | 组装脚本断言 + `compile_check.ps1` 静态检查 | 接口确实已经全部改指 `A11yHost` |
 | 平台层**能挂上逐作 partial** | 用一份最小 `UiNav.Game.cs` 占位实现参与编译 | partial 拆分的接口是完整的 |
 | 三作差异矩阵 | 对 `main` 克隆后按 SHA256 逐文件比对 + 归一化 `namespace` 后 `diff -U0` | 见流水线 §1.1 |
-| `tools/new_game.py` 能生成干净的骨架 | 冒烟测试：生成 55 个文件（27 个渲染文件 + `licenses/` 24 份许可证原文 + `.gitignore`/`.gitattributes` + `tools/compile_check.ps1` + `README.md`），**无残留占位符、无上一作标识**（三份姊妹作通知范例与上游补丁片段不随骨架生成），`.ps1` 带 BOM，csproj 按路线正确裁剪 | 骨架生成这一环是通的 |
+| `tools/new_game.py` 能生成干净的骨架 | 冒烟测试：生成 55 个文件（27 个渲染文件 + `licenses/` 24 份许可证原文 + `.gitignore`/`.gitattributes` + `tools/compile_check.ps1` + `README.md`），**无 `{{…}}` 占位符残留**；但 `docs/`、`.gitignore`、平台层注释与 `templates/game/` 仍带上一作的专名与示例代码，生成后须逐作清理（三份姊妹作通知范例与上游补丁片段不随骨架生成），`.ps1` 带 BOM，csproj 按路线正确裁剪 | 骨架生成这一环是通的 |
 | `tools/assemble_from_sources.py` 可复现 | 源仓库处于组装时的提交，重跑一遍后 `git status` 为空 | `licenses/` 重跑后逐字节一致、`git status` 为空；`platform/` 自 0.2.0.0 起有手工演进（`Repeat.cs`、争渡后端、注释更正），默认不重生成，要重生成才加 `--refresh-platform`；`build/`、`probe/`、`templates/probe/` 已按新作通用化、改为手工维护，要重生成才加 `--refresh-generated` |
 | `platform/Zdsr.cs` 的选路与失败路径 | `tools/zdsr_selftest/run.ps1`：桩 ZDSRAPI DLL 造出「DLL 不在 / 未授权 / 可用 / 掉线」，71 条断言（0.2.0.0 时 64 条，0.2.1.0 增至 71） | 判据确实是 `GetSpeakState ∈ {3,4}`，未授权时**不会**被 `Speak()==0` 骗过 |
 

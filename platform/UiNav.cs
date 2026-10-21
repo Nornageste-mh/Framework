@@ -987,7 +987,7 @@ namespace A11yFramework
                 {
                     // 别名命中控件**自己**时（确认框的 Yes/No 这类纯图片按钮），
                     // 面板上的问题读在前、按钮名读在后：
-                    //   「确定要使用这个姓名吗，确定，按钮」
+                    //   「<确认文案>，确定，按钮」
                     // 别名来自祖先行名时保持原顺序（「窗口分辨率，1280×720」）。
                     if (AliasOnSelf(s)) return near + "，" + row;
                     return row + "，" + near;
@@ -1497,7 +1497,7 @@ namespace A11yFramework
 
             if (KeyEdge.Pressed(KeyCode.Tab)) { Diag("Tab 检测到 active=" + _active + " frame=" + Time.frameCount); Toggle(); return; }
 
-            // 游戏**自己**换面板时（例如姓名输入按回车 →「确定要使用这个姓名吗」
+            // 游戏**自己**换面板时（例如姓名输入按回车 →「<确认文案>」
             // 确认框：promptUI 与 confirmationUI 直接 SetActive 互换）不会通知我们，
             // 列表会一直停在旧控件上，新面板的按钮就「定位不到」。
             // 当前项一旦失效就重扫一次；每个失效对象只请求一次，避免反复重扫。

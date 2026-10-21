@@ -14,7 +14,7 @@
         EnableSourceLink=false
       只关前两条是不够的：SDK 默认 EnableSourceLink=true，会把当前 git 提交写进 PDB，
       PDB 的内容哈希又进 DLL 的 debug 目录与确定性 MVID。
-      TransparentHer 就只关了第一条、以为修好了，一提交才发现产物还是变。
+      有人就只关了第一条、以为修好了，一提交才发现产物还是变。
   -->
 
   <PropertyGroup>

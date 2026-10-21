@@ -207,7 +207,8 @@ def main():
         write(readme, README_SKELETON.format(
             ns=a.ns, title=a.title.strip("《》"), guid=a.guid, route=a.route), False)
 
-    print("已生成 %d 个文件 -> %s" % (len(made), out))
+    total = sum(len(fs) for _, _, fs in os.walk(out))
+    print("已渲染 %d 个文件，本作骨架共 %d 个文件 -> %s" % (len(made), total, out))
     print()
     print("下一步（按这个顺序）：")
     print("  1. 填 mod/src/%s/UiNav.Game.cs  —— 别名表与姓名框探测，**每一条都要有依据**" % a.ns)
