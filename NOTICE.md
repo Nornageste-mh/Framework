@@ -86,9 +86,24 @@ notices and license texts must be preserved.
 | UnityDoorstop | LGPL-2.1 | Neighhiola | 同上 |
 | NVDA Controller Client | LGPL-2.1 | NV Access | 本仓库不随附；由使用方自行取得 |
 | Tolk | BSD-3-Clause | ndarilek | 可选；本仓库不随附 |
+| 争渡读屏 ZDSRAPI（可选） | **专有软件**（非开源） | 争渡读屏（ZDSR）的作者 / 发行方 | 本仓库**不随附**其 DLL；发布包若放兜底副本，须自行取得授权并自负责任；本项目未取得其书面许可 |
 
 分发本软件时，须保留上述组件的原始版权声明与许可文本。若你重新分发本项目的
 构建产物，请自行确认已满足全部第三方许可的署名、附随与源码提供要求。
+
+6. 关于反编译与资源解包 / On Decompilation and Asset Extraction
+--------------------------------------------------------------
+
+本仓库的部分文档（`docs/`）为了说明互操作补丁点，描述了反编译、资源解包与脚本
+提取的方法。此类行为**可能违反目标软件的最终用户许可协议（EULA）或反规避条款**，
+其合法性因司法辖区而异。文档给出这些步骤只为技术说明，不构成对合法性的保证；
+使用者须自行评估并承担全部风险。任何提取产物都不得提交进本仓库、不得随补丁分发。
+
+Some documents in this repository describe decompilation and asset extraction
+for interoperability purposes. Such acts may violate the target software's
+EULA or anti-circumvention terms. They are described for technical reference
+only, without any warranty of legality; you are responsible for assessing the
+risk yourself. Extracted content must never be committed or redistributed.
 
 The components above are licensed under their own terms and are **not** covered
 by this MIT license. Preserve their copyright notices and license texts when

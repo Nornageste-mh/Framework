@@ -314,7 +314,7 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 | uGUI submit 通路 | `StandaloneInputModule.SendSubmitEventToSelectedObject` | — | 常驻关 `sendNavigationEvents` |
 | （本作特有） | — | QTE：`QTEUI` / `QTEScoreComponent` | 倒计时进度条 `FadingSlider.FadeSliderOverTime` |
 
-**挂载点的唯一合法来源**：反编译实查（`ilspycmd`）+ 探针场景树转储。
+**挂载点的唯一权威来源**：反编译实查（`ilspycmd`）+ 探针场景树转储。
 
 ### 组装时发现的两处（流水线 §1.2 的分类没覆盖到）
 
@@ -486,7 +486,10 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 发布包里除了自己的插件 DLL，还有十来个第三方二进制（BepInEx、UnityDoorstop、
 HarmonyX、Mono.Cecil、MonoMod、NVDA Controller Client）。
 **BepInEx 官方 zip 里一个许可证文件都不带**，所以这些得自己列。
-完整清单与范例见 `licenses/THIRD-PARTY-NOTICES.example-*.txt`。
+完整清单与范例见 `licenses/THIRD-PARTY-NOTICES.example-*.txt`；其中
+**争渡读屏的 `ZDSRAPI.dll` / `ZDSRAPI_x64.dll` 是专有软件**，不属于 MIT / LGPL 任何一项，
+本仓库也不随附。若你在发布包里放一份兜底副本，请先自行确认已获授权，并按范例第 8 项
+把它单列进 `THIRD-PARTY-NOTICES.txt`。
 
 **一条容易记反的事**：
 
@@ -511,8 +514,8 @@ HarmonyX、Mono.Cecil、MonoMod、NVDA Controller Client）。
 其中 `THIRD-PARTY-NOTICES.example-*.txt` 是三作的原样范例，
 **逐作发布时必须重写**（组件清单与版本不同）。
 
-**本仓库不含任何游戏资源、不含任何游戏的剧本原文，也不含反编译生成的代码文件、类型定义与方法体。**
-（仓库里出现的方法名 / 类名是说明补丁点所必需的互操作事实，不属于反编译产物。）
+**本仓库不含任何游戏资源、不含任何游戏的剧本原文，也不含反编译生成的完整代码文件（含类型定义与方法体）。**
+（仓库里出现的方法名 / 类名 / 字段名与调用序列，是说明补丁点与论证行为所必需的互操作事实，不属于反编译产物。）
 
 简要说明：
 

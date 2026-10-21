@@ -178,7 +178,7 @@ namespace {{NS}}Probe
         {
             string name = __instance != null && __instance.characterNameText != null
                 ? __instance.characterNameText.text : "";
-            ProbePlugin.Say($"[hook] UISceneController.StartTyping text={Shape(text)} nameText=\"{name}\"");
+            ProbePlugin.Say($"[hook] UISceneController.StartTyping text={Shape(text)} nameText={Shape(name)}");
         }
 
         [HarmonyPatch(typeof(DialogueCommandExecutor), nameof(DialogueCommandExecutor.ExecuteDialogue))]
@@ -188,7 +188,7 @@ namespace {{NS}}Probe
             if (scene == null) return;
             ProbePlugin.Say($"[hook] ExecuteDialogue type={scene.TypeName} num={scene.Number} "
                 + $"hasVoice={!string.IsNullOrEmpty(scene.VoiceFilename)} "
-                + $"name=\"{scene.CharacterName}\" dlg={Shape(scene.Dialogue)} "
+                + $"name={Shape(scene.CharacterName)} dlg={Shape(scene.Dialogue)} "
                 + $"choice={Shape(scene.ChoiceText)}");
         }
 
