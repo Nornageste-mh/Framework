@@ -74,9 +74,12 @@
 ### 四、脚本与文档里的本机路径
 
 - `tools/assemble_from_sources.py`：`--study` 默认值改为 `$env:A11Y_STUDY` → `~/a11y-study`；
-  **新增 `--refresh-generated`**：`build/`、`probe/`、`templates/probe/` 下的模板已按新作
-  通用化、改为手工维护，默认不再被重新生成覆盖（要重新生成才加这个开关）。
-  这也让「重跑一遍 `git status` 为空」这条承诺与实际行为一致。
+  **新增 `--refresh-generated`**：`build/`、`probe/`、`templates/probe/` 下的模板已改为
+  手工维护，默认不再被重新生成覆盖（要重新生成才加这个开关）。注意它们只做了**字符串**
+  占位化（`{{TITLE}}` / `{{GUID}}` / `{{PROCNAME}}`），探针里的类型名与成员仍是上一作的
+  示例，换作时要重写。另新增 `--refresh-platform`：`platform/` 自 0.2.x 起有手工演进
+  （`Repeat.cs`、争渡后端等），默认不重生成。这样重跑只在 `licenses/` 上有写操作，
+  「重跑一遍 `git status` 为空」仍成立。
 - 文档里作者本机的绝对路径（`docs/无障碍补丁流水线.md` 末尾的克隆位置、
   `README.md` 的示例输出目录、`new_game.py` 的 docstring 示例）全部改为占位/相对路径。
 - `.gitignore` 增 `__pycache__/` 与 `*.pyc`（跑 `py_compile` 会留下）。
@@ -93,7 +96,9 @@
 - **争渡 ZDSRAPI 专有 DLL 的许可缺口**：三份 `licenses/THIRD-PARTY-NOTICES.example-*.txt`
   是 2026-09 的快照，只列了开源组件，没列随包兜底的争渡专有 DLL；而 `platform/Zdsr.cs`
   与本文档都记着「发布包里会附一份」。已把三份范例同步为三个姊妹仓的当前版本
-  （新增第 8 项「争渡读屏 ZDSRAPI」，明写不属于 MIT、未取得书面许可、随包分发责任自负），
+  （新增「争渡读屏 ZDSRAPI」一项 —— 两份 Mono 范例是第 8 项、IL2CPP 那份是独立小节；
+  明写不属于 MIT、未取得书面许可；范例给出的再分发依据
+  来自争渡官方 API 文档，属姊妹仓各自的分发决定，**不代表本框架的建议**），
   `NOTICE.md` 组件表补一行并在 §6 说明本仓库**不随附**该 DLL，
   `README.md`「合规」节与 `docs/无障碍补丁流水线.md` 的「照抄」清单同步补上。
 - `platform/Zdsr.cs` 的注释原先把「随包兜底」写成推荐做法，与它自己引用的官方原话
@@ -130,16 +135,55 @@
   `DumpUiText` 是 `const false`，包在 `if` 里的代码会被判定为不可达。
 - 断言数口径统一：`README.md` 与 `CHANGELOG.md` 里的「64 条」标注为
   「0.2.0.0 时 64 条、0.2.1.0 增至 71 条」，当前总数以 71 条为准。
-- **提交历史里的本机工作目录已重写脱敏**：早期提交的模板/文档里带过
-  `D:\work\…` 这样的作者本机路径，现已把所有提交（含两个 tag）中的该前缀
-  换成中性占位；`D:\Steam\steamapps\common\钟塔 Belfry` 这一条作为组装脚本的
-  映射源按字面量保留（它是游戏安装路径，不含用户名）。全部提交的邮箱已是
-  GitHub noreply 地址。
+- **提交历史里的作者本机实验目录前缀已重写**：早期提交的模板/文档里带过作者本机的
+  实验目录前缀，现已把 17 个提交（含两个 tag）里的该前缀统一换成 `D:\work\…`。
+  历史里剩下的本机路径都是 `D:\work\…`、`D:\tools\w64devkit\…` 这类**不含用户名**的
+  通用路径，按原样保留；当前树里只剩两处刻意保留的功能性字面量（组装脚本的映射源
+  `D:\Steam\steamapps\common\钟塔 Belfry` 与争渡的默认安装路径），都是游戏/软件安装路径。
+  全部提交的邮箱已是 GitHub noreply 地址。
 
 > 本次修订**没有**改动平台层行为（`platform/` 只有注释变化）、契约层（`contract/`）。
 > `licenses/` 只是把三份 `THIRD-PARTY-NOTICES.example-*.txt` 同步到姊妹仓当前版本
 > （新增争渡 ZDSR 一项），其余许可证文本未动。也**没有**删掉三作的补丁点汇总表 ——
 > 那些信息在三个公开姊妹仓里本来就有，删掉只会丢知识。
+
+### 七、第二轮审核的复核补正（同日）
+
+第一轮修订提交后，又按两条独立的对抗式审核意见做了补正 —— 都是「仓库自己写了、
+一核就假」的那类句子，公开后一条 `git log -p` 就能推翻：
+
+- **Tolk 的许可与构建事实**：原注释与文档称「Tolk 官方只有 MSVC 工程、不提供预编译
+  二进制」，实测上游有 CI 构建的 `tolk.zip`（只有 `master` 分支、无版本 tag），
+  且 `LICENSE.txt` 是 **LGPL-3.0**。`platform/Speech.cs`、`platform/Zdsr.cs` 的注释、
+  `README.md`、`CHANGELOG.md`、`docs/无障碍补丁流水线.md`、`docs/licenses.md`、
+  `NOTICE.md` 七处口径统一，并补上「随包分发须附许可全文、来源与修改说明」。
+  `platform/` 的两处注释由 `tools/assemble_from_sources.py` 的 `_STALE_NOTES`
+  在**输出**上更正（源仓库不动，重跑仍然逐字节一致；锚点对不上就直接报错）。
+- **MIT 与「署名要求」的冲突**：`README.md` 许可节原写「附加的署名要求」「但须标注
+  出处」，与 `NOTICE.md` 的「请求（而非强制）」及根 `LICENSE` 冲突。已统一为
+  「MIT 唯一的强制义务是保留版权声明与许可全文；标注出处 / 注明已修改是请求」。
+- **`docs/licenses.md` 的两处事实错误**：Capstone 不是 Tolk 的依赖（属 IL2CPP 工具链）；
+  三份通知范例是「未取得书面许可」而非「责任自负」，且只有两份 Mono 范例是第 8 项、
+  IL2CPP 那份是独立小节。`CHANGELOG.md` 的转述同步更正。
+- **可机械核对的数字**：`README.md` 的骨架冒烟测试由「54 个文件」改为 **59 个**
+  （27 个渲染文件 + `licenses/` 28 份 + `.gitignore`/`.gitattributes` +
+  `check-staged.ps1` + `README.md`）。断言数 71 条（含 `Case_RegistryLookup`
+  在争渡未安装时跳过一条）复核无误。
+- **守卫脚本的路径**：`README.md` 与 `.gitignore` 原写 `build/check-staged.ps1`，
+  实际只有 `build/check-staged.ps1.template`（由 `tools/new_game.py` 生成到
+  新作的 `tools/check-staged.ps1`）。两处都已改正。
+- **历史脱敏的口径收窄**：`filter-branch` 换掉的是作者本机的实验目录前缀（统一为
+  `D:\work\…`）；历史里仍留着 `D:\work\…`、`D:	ools\w64devkit\…` 这类**不含用户名**的
+  通用路径，按原样保留。原文写「本机工作目录已重写脱敏」过宽，已按事实收窄。
+- **`platform/` 不再默认重生成**：0.2.0.0 起该目录有手工演进（`Repeat.cs`、争渡后端），
+  再整份重建会删掉手工成果。组装脚本因此新增 `--refresh-platform`，默认只重写
+  `licenses/`；`licenses/` 重跑后仍逐字节一致（已实测零 diff）。
+- **游戏内专名**：`platform/UiNav.cs` 注释里的具体曲名与输入内容、`templates/game/TextProc.cs.template`
+  里的角色名，都换成 `<曲名>` / `<已输入内容>` / `角色A` / `作品甲` 这类占位 ——
+  模板会被 `new_game.py` 原样拷进新作，保留上一作的专名既无必要也不合适。
+- **模板的性质写清楚**：`templates/game/UiNav.Game.cs.template` 与
+  `templates/probe/ProbePlugin.cs.template` 里仍带上一作的类型名与成员，它们是
+  **换作时的示例片段**，不是能直接编译的成品 —— README 的验证表下已加说明。
 
 ---
 
@@ -205,7 +249,7 @@
 
 | 后端 | 对争渡用户意味着什么 |
 |---|---|
-| Tolk | 要玩家自备 `Tolk.dll`（官方不提供预编译二进制） |
+| Tolk | 要玩家自备 `Tolk.dll`（上游有 CI 构建的 `tolk.zip`，无版本 tag；LGPL-3.0，随包须附许可全文） |
 | NVDA | 只喂 NVDA，争渡听不到 |
 | SAPI | 能出声，但**不是玩家读屏的声音**：音色/语速/音量另一套，也不走读屏的排队 |
 

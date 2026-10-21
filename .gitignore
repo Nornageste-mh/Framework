@@ -5,7 +5,7 @@
 # 「不该入库」的东西只有两类 ——
 #   1) 版权内容：游戏本体资源、反编译产物、剧本导出、含台词的日志、游戏截图
 #   2) 构建噪音：下载的依赖、编译中间产物、玩家自己的配置与存档
-# 由 build/check-staged.ps1 在 git commit 前机械拦截。
+# 由 build/check-staged.ps1.template 生成到逐作骨架的 tools/check-staged.ps1，在 git commit 前机械拦截。
 #
 # ⚠ **规则后面不能跟行内注释。**
 #   gitignore 只在**行首**认 `#`：写成 `package/   # 安装包` 的话，

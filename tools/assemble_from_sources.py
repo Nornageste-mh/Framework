@@ -3,10 +3,11 @@ r"""从三个已发布仓库**重新组装** A11yFramework 的 L1 平台层与 l
 
     python tools/assemble_from_sources.py --study <三个仓库的克隆根目录>
 
-注意：本脚本默认只重写 platform\ 与 licenses\，**不会碰手写的**
-README / contract/A11yHost.cs / templates/game/*.template，也不会碰已按新作
-通用化、改为手工维护的 build\ / probe\ / templates\probe\ 模板 ——
-要重新生成那三处，加 --refresh-generated（会覆盖手改内容，慎用）。
+注意：本脚本默认**只重写 licenses\** —— 其它目录都是手工维护的，不会被碰：
+  · platform\              自 0.2.0.0 起有手工演进（Repeat.cs、争渡后端、注释更正），
+                             要重新生成加 --refresh-platform（会覆盖手改内容，慎用）
+  · build\ / probe\ / templates\probe\   已改为手工维护，要重新生成加 --refresh-generated
+  · README / contract/A11yHost.cs / templates/game/*.template   永远不动
 
 原始说明：从三个已发布仓库组装 A11yFramework（可复用的平台层 + 契约层）。
 
@@ -29,6 +30,8 @@ _ap.add_argument("--study", default=os.environ.get("A11Y_STUDY")
                       "；默认读环境变量 A11Y_STUDY，否则 ~/a11y-study")
 _ap.add_argument("--refresh-generated", action="store_true",
                  help="连 build\\ / probe\\ / templates\\probe\\ 模板一起重生成（会覆盖手工改动）")
+_ap.add_argument("--refresh-platform", action="store_true",
+                 help="连 platform\\ 一起重生成（0.2.x 起 platform\\ 有手工演进，重生成会覆盖）")
 _ap.add_argument("--out", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                  help="A11yFramework 仓库根目录，默认本脚本的上一级")
 _ARGS = _ap.parse_args()
@@ -126,6 +129,42 @@ def finish(text, name):
     return add_banner(text)
 
 
+_STALE_NOTES = {
+    # 上游（belfry 克隆）注释里有两处此后被查证为**不准确**的说法。源仓库不动，
+    # 在**输出**上更正 —— 这样重跑组装仍然逐字节一致，而公开仓里不会留着错的
+    # 合规指引。锚点缺一个就报错，避免上游改写后悄悄漏掉更正。
+    "Speech.cs": [
+        (["    /// 之所以自带 NVDA / 争渡 / SAPI 三级而不强依赖 Tolk：Tolk 官方不提供预编译",
+          "    /// 二进制，只有 MSVC 工程；而在只装了 NVDA 的机器上，JAWS / SuperNova /"],
+         ["    /// 之所以自带 NVDA / 争渡 / SAPI 三级而不强依赖 Tolk：Tolk 上游确有 CI 构建的",
+          "    /// tolk.zip，但只有 master 分支、没有版本 tag（且 Tolk 是 LGPL-3.0，随包须附",
+          "    /// 许可全文与来源）；而在只装了 NVDA 的机器上，JAWS / SuperNova /"]),
+        (["    /// 把 Tolk.dll 及 Tolk 的依赖 DLL（nvdaControllerClient64.dll、SAAPI64.dll）",
+          "    /// 放进 BepInEx\\plugins\\ 即可自动启用。"],
+         ["    /// 把 Tolk.dll 及 Tolk 的依赖 DLL（nvdaControllerClient64.dll、SAAPI64.dll）",
+          "    /// 放进 BepInEx\\plugins\\ 即可自动启用。**Tolk 是 LGPL-3.0**：随包分发时必须",
+          "    /// 附许可证全文、来源与修改说明（见 NOTICE.md 第 5 节）。"]),
+    ],
+    "Zdsr.cs": [
+        (["    ///   · Tolk   —— 需要用户自己放 Tolk.dll，且官方不提供预编译二进制；"],
+         ["    ///   · Tolk   —— 需要用户自己放 Tolk.dll（上游有 CI 构建的 tolk.zip，无版本 tag）；"]),
+    ],
+}
+
+
+def fix_stale_notes(name, text):
+    pairs = _STALE_NOTES.get(name)
+    if not pairs:
+        return text
+    nl = "\r\n" if "\r\n" in text else "\n"
+    for old_lines, new_lines in pairs:
+        old = nl.join(old_lines)
+        if old not in text:
+            raise SystemExit("上游注释锚点对不上（%s）：%r" % (name, old_lines[0]))
+        text = text.replace(old, nl.join(new_lines), 1)
+    return text
+
+
 def build_platform():
     # KeyEdge.cs 按流水线 §1.2 被归成「belfry 的按键边沿检测」，
     # 但平台层的 UiNav.cs 引用它 14 处 —— 它其实是 L1，本仓库把它提升为冻结层。
@@ -136,7 +175,8 @@ def build_platform():
     for name in ("Speech.cs", "Nvda.cs", "Sapi.cs", "Zdsr.cs", "Hotkey.cs", "KeyEdge.cs"):
         text, _ = read_text(os.path.join(SRC_BEL, name))
         n = text.count("Plugin.")
-        write_text(os.path.join(OUT, "platform", name), finish(text, name), False)
+        text = fix_stale_notes(name, finish(text, name))
+        write_text(os.path.join(OUT, "platform", name), text, False)
         report.append(("L1", name, "Plugin.*->%d" % n))
 
 
@@ -259,16 +299,23 @@ def main():
     # 只清掉本脚本**自己生成**的目录。
     # 绝不 rmtree 整棵树 —— 仓库里还有手写的 README / A11yHost.cs / 文档模板，
     # 删掉它们等于把人工成果一起清空（第一次跑这个脚本时就踩到了）。
-    assert_sources_not_stale()
     for sub in ("platform", "licenses"):
+        if sub == "platform" and not _ARGS.refresh_platform:
+            continue
         d = os.path.join(OUT, sub)
         if os.path.isdir(d):
             shutil.rmtree(d)
     os.makedirs(OUT, exist_ok=True)
 
-    game_block, nl = build_uinav_split()
-    build_platform()
-    write_text(os.path.join(OUT, "templates", "game", "UiNav.Game.cs.template"), game_block, False)
+    if _ARGS.refresh_platform:
+        assert_sources_not_stale()
+        game_block, nl = build_uinav_split()
+        build_platform()
+        write_text(os.path.join(OUT, "templates", "game", "UiNav.Game.cs.template"),
+                   game_block, False)
+    else:
+        print("platform\\ ：手工维护（0.2.x 起有手工演进），未重生成"
+              "（要重生成加 --refresh-platform）")
 
     seen = {}
     for tag, root in (("belfry", BEL), ("noexistence", NOE), ("transparenther", TRA)):
@@ -280,13 +327,20 @@ def main():
             if not os.path.isfile(sp):
                 continue
             h = hashlib.sha256(rb(sp)).hexdigest()[:12]
-            if fn in seen and seen[fn][0] == h:
-                continue
             out_fn = fn
             if fn == "THIRD-PARTY-NOTICES.txt":
                 route = "il2cpp" if tag == "noexistence" else "mono"
                 out_fn = "THIRD-PARTY-NOTICES.example-%s-%s.txt" % (tag, route)
-            seen.setdefault(out_fn, (h, sp))
+            prev = seen.get(out_fn)
+            if prev is not None:
+                if prev[0] == h:
+                    continue
+                # 同名不同内容：以前是静默覆盖（后一个赢），而 licenses\ 每次都被整份
+                # 重建 —— 那样重跑会悄悄换掉一份第三方许可证文本。宁可停下来。
+                raise SystemExit(
+                    "licenses 里同名但内容不同：%s\n  已收：%s\n  又见：%s\n请先决定保留哪一份。"
+                    % (out_fn, prev[1], sp))
+            seen[out_fn] = (h, sp)
             copy_bytes(sp, os.path.join(OUT, "licenses", out_fn))
 
     if _ARGS.refresh_generated:

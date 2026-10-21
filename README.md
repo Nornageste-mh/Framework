@@ -10,7 +10,8 @@
 > 设计依据与证据基础：`docs/无障碍补丁流水线.md`
 
 > **免责声明**：本项目是非官方、非营利的第三方无障碍工具，与任何游戏开发商、发行商、
-> 版权方均无隶属、合作、授权或背书关系。本仓库不含任何游戏资源、剧本原文与反编译产物；
+> 版权方均无隶属、合作、授权或背书关系。本仓库不含任何游戏资源、剧本原文与反编译产物
+> （方法名 / 类名等说明补丁点所必需的**互操作事实**不属于反编译产物，见下文「IP 与合规」）；
 > 使用前请自行购买游戏并遵守其服务条款与最终用户许可协议，**请勿用于传播盗版或破解**。
 > 若任何权利人认为本仓库内容不当，请通过 Issue 联系，我们核实后会调整或下线相关内容。
 > 完整条款见 [NOTICE.md](NOTICE.md)。
@@ -40,11 +41,13 @@
 TransparentHer 就是这么丢掉 `[朗读]` 诊断日志块和 `UiNav.Diag()` 的。
 本仓库存在的意义就是止住它：**接口固化，平台层只抄不改。**
 
-> **本仓库已按公开仓库的标准整理。** 仓库里只有自己写的框架代码、第三方许可证文本与工程文档 ——
+> **本仓库已按公开仓库的标准整理。** 仓库里只有自己写的框架代码、第三方许可证文本、工程文档，
+> 以及一处已列明权利人与来源的上游补丁片段（`licenses/il2cppinterop-pr277.patch`，Alec Hall，LGPL-3.0）——
 > **不含任何游戏资源、不含任何剧本原文**；也**不含反编译生成的代码文件、类型定义与方法体**
 > （仓库里出现的方法名 / 类名是说明补丁点所必需的**互操作事实**，见下面的「IP 与合规」）。
 > 使用本仓库制作补丁时需要**自备正版游戏**；提交前的机械守卫见
-> `build/check-staged.ps1` 与本文件同级的 `.gitignore` 第 1 节。
+> `build/check-staged.ps1.template`（逐作骨架里由 `tools/new_game.py` 生成为
+> `tools/check-staged.ps1`）与本文件同级的 `.gitignore` 第 1 节。
 
 ---
 
@@ -229,7 +232,8 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 
 ### `Speech.cs` —— 后端链
 
-- 自带 NVDA / 争渡 / SAPI 三级，**不强依赖 Tolk**（Tolk 官方只有 MSVC 工程、无预编译二进制）
+- 自带 NVDA / 争渡 / SAPI 三级，**不强依赖 Tolk**（上游有 CI 构建的 `tolk.zip`，但只有 `master`
+  分支、没有版本 tag；Tolk 是 **LGPL-3.0**，随包分发须附许可全文与来源）
 - 后端选择可被配置钉死（排查用）；**钉死后不可用不会回退**，这是刻意的
 - 初始化失败时把每个后端的结论串成一行日志（`Verdict()`），一眼看出「为什么全灭」
 - 朗读抛异常 → 后端降级为 `None` 并允许重试，**绝不把异常抛给游戏主循环**
@@ -240,7 +244,7 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 ### `Zdsr.cs` —— 争渡读屏（ZDSR）
 
 - 运行时按**这个顺序**找 `ZDSRAPI[_x64].dll`：
-  **注册表登记的安装目录 → 默认安装目录 → 插件目录（随包那份兜底）→ 游戏目录**。
+  **注册表登记的安装目录 → 默认安装目录 → 插件目录（若你自己在发布包里放了兜底副本）→ 游戏目录**。
   注册表那条是实查出来的（`争渡读屏 → InstallLocation`），所以装在非默认位置的玩家
   不需要做任何事；官方建议优先用安装目录那份（跟着读屏一起升级）
 - **某一份报版本不匹配（`InitTTS=1`）时自动换下一份候选** —— 随包那份过期不会卡死玩家，
@@ -252,7 +256,7 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 - 注册表用 advapi32 P/Invoke 直接读，不用 `Microsoft.Win32.Registry` —— 后者会把
   NuGet 依赖带进平台层，而这一层必须对 Mono 与 IL2CPP 都零依赖
 - 点显器（`Braille` 导出）接口已封装但**尚未接入朗读通路** —— 本机没有点显器，接上去无法验证
-- **随包兜底那份 dll**（发布包里才有，仓库里没有）与致谢说明见 CHANGELOG 0.2.1.0
+- **随包兜底那份 dll**（指你自己制作发布包时可选放入的那份；本仓库不随附）与致谢说明见 CHANGELOG 0.2.1.0
 
 ### `Hotkey.cs` —— 按键描述解析
 
@@ -441,14 +445,19 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 | 平台层**无 `Plugin.` 引用** | 组装脚本断言 + `compile_check.ps1` 静态检查 | 接口确实已经全部改指 `A11yHost` |
 | 平台层**能挂上逐作 partial** | 用一份最小 `UiNav.Game.cs` 占位实现参与编译 | partial 拆分的接口是完整的 |
 | 三作差异矩阵 | 对 `main` 克隆后按 SHA256 逐文件比对 + 归一化 `namespace` 后 `diff -U0` | 见流水线 §1.1 |
-| `tools/new_game.py` 能生成干净的骨架 | 冒烟测试：生成 54 个文件，**无残留占位符、无上一作标识**，`.ps1` 带 BOM，csproj 按路线正确裁剪 | 骨架生成这一环是通的 |
-| `tools/assemble_from_sources.py` 可复现 | 源仓库处于组装时的提交，重跑一遍后 `git status` 为空 | 重跑后这两部分逐字节一致、`git status` 为空；`build/`、`probe/`、`templates/probe/` 下的模板已按新作通用化、改为手工维护，要重生成才加 `--refresh-generated` |
+| `tools/new_game.py` 能生成干净的骨架 | 冒烟测试：生成 59 个文件（27 个渲染文件 + `licenses/` 28 份 + `.gitignore`/`.gitattributes` + `check-staged.ps1` + `README.md`），**无残留占位符、无上一作标识**，`.ps1` 带 BOM，csproj 按路线正确裁剪 | 骨架生成这一环是通的 |
+| `tools/assemble_from_sources.py` 可复现 | 源仓库处于组装时的提交，重跑一遍后 `git status` 为空 | `licenses/` 重跑后逐字节一致、`git status` 为空；`platform/` 自 0.2.0.0 起有手工演进（`Repeat.cs`、争渡后端、注释更正），默认不重生成，要重生成才加 `--refresh-platform`；`build/`、`probe/`、`templates/probe/` 已按新作通用化、改为手工维护，要重生成才加 `--refresh-generated` |
 | `platform/Zdsr.cs` 的选路与失败路径 | `tools/zdsr_selftest/run.ps1`：桩 ZDSRAPI DLL 造出「DLL 不在 / 未授权 / 可用 / 掉线」，71 条断言（0.2.0.0 时 64 条，0.2.1.0 增至 71） | 判据确实是 `GetSpeakState ∈ {3,4}`，未授权时**不会**被 `Speak()==0` 骗过 |
+
 | `platform/Hotkey.cs` 的按键解析 | 同上（20 条断言，Unity 的 `Input` 不参与） | `Alt+Shift+F9` 这类写法可用；`"0"` 这类 G3 陷阱被拒绝 |
 | 争渡安装目录能被自动找到 | 同上：`RegistryInstallDirs()` 读真实注册表 | 本机返回 `C:\Program Files (x86)\zdsr\zdsr`（`DisplayName=争渡读屏`） |
 | 旧 dll 不会卡死玩家 | 同上：第一份桩 `InitTTS` 固定返回 1，第二份正常 | 自动落到第二份；全都不匹配时给出可读原因 |
 | 争渡**真的出声** | 宿主程序直接编译 `platform/Speech.cs`+`Zdsr.cs` 对着真争渡说话，外部轮询 `GetSpeakState()` | 阳性：走争渡时 12/12 采样为 **3（正在朗读）**；阴性对照：同一句走 SAPI 时全程 **4（空闲）** |
 | 切换顺序（真环境） | 同一宿主调 `CycleAvailable()` 六次（NVDA 在跑、争渡已授权） | `争渡 → SAPI → 自动 → …` 且每次落盘；**从自动起第一下就到争渡** |
+
+> `templates/game/UiNav.Game.cs.template` 与 `templates/probe/ProbePlugin.cs.template`
+> 里仍带着上一作的类型名与成员：它们是**换作时的示例片段**，不是能直接编译的成品 ——
+> 新作必须把这些类名/成员改写成本作的（骨架生成后 `UiNav.Game.cs` 需要按本作重写）。
 
 | **没做过的验证** | 说明 |
 |---|---|
@@ -508,7 +517,7 @@ HarmonyX、Mono.Cecil、MonoMod、NVDA Controller Client）。
 
 本仓库的**补丁框架代码与文档**（`platform/`、`contract/`、`templates/`、`build/`、`docs/`）
 由本项目的维护者编写，供制作同类无障碍补丁时复用，采用 [MIT 许可](LICENSE) 发布；
-附加的署名要求、非官方声明与免责条款见 [NOTICE.md](NOTICE.md)。
+附加的署名**请求**（不是条件）、非官方声明与免责条款见 [NOTICE.md](NOTICE.md)。
 
 `licenses/` 下是**第三方组件**的许可证文本，版权归各自作者所有；
 其中 `THIRD-PARTY-NOTICES.example-*.txt` 是三作的原样范例，
@@ -519,8 +528,9 @@ HarmonyX、Mono.Cecil、MonoMod、NVDA Controller Client）。
 
 简要说明：
 
-- **可自由使用、修改、再分发**（含商用），但须标注出处 —— 本仓库地址与作者
-  Nornageste-mh；若你做了修改，须注明「已修改」，不得让人误以为修改版出自原作者。
+- **可自由使用、修改、再分发**（含商用）。MIT 唯一的强制义务是**保留版权声明与许可全文**；
+  至于标注出处（本仓库地址与作者 Nornageste-mh）、修改后注明「已修改」，那是**请求**而非条件
+  （见 NOTICE.md 第 1 节）。无论是否标注，都不要让人误以为修改版出自原作者。
 - **本项目为非官方第三方工具**：本仓库是独立开发的通用无障碍框架（视觉小说读屏补丁的平台层与契约层），不是任何一款游戏的补丁，与任何游戏开发商、发行商均无隶属关系，未获其授权或背书。本仓库不含任何游戏资源、剧本原文或反编译产物。
 - **按「现状」提供，不承担任何责任**：因使用本软件导致的游戏存档损坏、游戏崩溃、
   账号受限、或与游戏厂商及任何第三方产生的争议与索赔，作者与贡献者均不负责。
