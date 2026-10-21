@@ -17,7 +17,7 @@ NVDA Controller Client、UnityDoorstop 等也不带。
 |---|---|---|---|
 | `MIT-BepInEx.txt` | BepInEx 5.x（`v5-lts` 分支，含 5.4.23.5） | MIT | Copyright (c) 2018 Bepis |
 | `LGPL-2.1-BepInEx.txt` | BepInEx 6.x（`master` 分支） | LGPL-2.1 | BepInEx Team |
-| `MIT-BepInEx.Harmony.txt` | BepInEx.Harmony | MIT | BepInEx 项目（上游版权行留空，按原样保留） |
+| `MIT-BepInEx.Harmony.txt` | BepInEx.Harmony | MIT | BepInEx 项目（上游版权行为 `Copyright (c) 2019 `，年份在、权利人留空，按原样保留） |
 | `MIT-HarmonyX.txt` | HarmonyX | MIT | Copyright (c) 2020 BepInEx |
 | `MIT-HarmonyX-AndreasPardeike.txt` | HarmonyX 的上游（Harmony 2） | MIT | Copyright (c) 2017 Andreas Pardeike |
 | `MIT-Harmony.txt` | Harmony（旧版） | MIT | Copyright (c) 2017 Andreas Pardeike |
@@ -41,10 +41,12 @@ NVDA Controller Client、UnityDoorstop 等也不带。
 | `MIT-dotnet-runtime.txt` | .NET runtime | MIT | .NET Foundation |
 | `Apache-2.0-Dobby.txt` | Dobby（BepInEx 6 / IL2CPP 运行时的依赖） | Apache-2.0 | jmpews |
 
-> - 表里 `il2cppinterop-pr277.patch` 是**上游补丁片段**，不是许可证文本；真正的许可证原文共 **24** 份（其余 3 份是通知范例）。
+> - `licenses/` 共 28 个文件：**24 份许可证原文** + **3 份通知范例** + 1 份上游补丁片段
+>   （`il2cppinterop-pr277.patch`，不是许可证文本）。
 > - 上表是**文本**清单，不等于发布包必须包含的组件清单；逐作发布时按该作实际随包的
 >   二进制重新列一遍（范例见下）。
-> - **Tolk** 是可选依赖（玩家自备 `Tolk.dll`）。上游 releases 有 CI 构建的 `tolk.zip`，
+> - **Tolk** 是可选依赖（玩家自备 `Tolk.dll`）。上游是 `dkager/tolk`（Davy Kager 等），
+>   持续维护的 fork 是 `ndarilek/tolk`；后者的 releases 有 CI 构建的 `tolk.zip`，
 >   但只有 `master` 分支、没有版本 tag（引用时写提交号）。上游许可是 **LGPL-3.0**
 >   （`ndarilek/tolk` 的 `LICENSE.txt`）。
 >   **本仓库不随附**，因此这里没有单列它的文本 —— LGPL-3.0 用的是同一份标准文本，

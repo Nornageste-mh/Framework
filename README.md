@@ -445,10 +445,9 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 | 平台层**无 `Plugin.` 引用** | 组装脚本断言 + `compile_check.ps1` 静态检查 | 接口确实已经全部改指 `A11yHost` |
 | 平台层**能挂上逐作 partial** | 用一份最小 `UiNav.Game.cs` 占位实现参与编译 | partial 拆分的接口是完整的 |
 | 三作差异矩阵 | 对 `main` 克隆后按 SHA256 逐文件比对 + 归一化 `namespace` 后 `diff -U0` | 见流水线 §1.1 |
-| `tools/new_game.py` 能生成干净的骨架 | 冒烟测试：生成 55 个文件（27 个渲染文件 + `licenses/` 24 份许可证原文 + `.gitignore`/`.gitattributes` + `tools/compile_check.ps1` + `README.md`），**无 `{{…}}` 占位符残留**；但 `docs/`、`.gitignore`、平台层注释与 `templates/game/` 仍带上一作的专名与示例代码，生成后须逐作清理（三份姊妹作通知范例与上游补丁片段不随骨架生成），`.ps1` 带 BOM，csproj 按路线正确裁剪 | 骨架生成这一环是通的 |
+| `tools/new_game.py` 能生成干净的骨架 | 冒烟测试：生成 55 个文件（27 个渲染文件 + `licenses/` 24 份许可证原文 + `.gitignore`/`.gitattributes` + `tools/compile_check.ps1` + `README.md`），**无 `{{…}}` 占位符残留**；但 `docs/`、`.gitignore`、平台层注释、`templates/game/` 与 `templates/probe/` 仍带上一作的专名与示例代码，生成后须逐作清理（三份姊妹作通知范例与上游补丁片段不随骨架生成），`.ps1` 带 BOM，csproj 按路线正确裁剪 | 骨架生成这一环是通的 |
 | `tools/assemble_from_sources.py` 可复现 | 源仓库处于组装时的提交，重跑一遍后 `git status` 为空 | `licenses/` 重跑后逐字节一致、`git status` 为空；`platform/` 自 0.2.0.0 起有手工演进（`Repeat.cs`、争渡后端、注释更正），默认不重生成，要重生成才加 `--refresh-platform`；`build/`、`probe/`、`templates/probe/` 已按新作通用化、改为手工维护，要重生成才加 `--refresh-generated` |
 | `platform/Zdsr.cs` 的选路与失败路径 | `tools/zdsr_selftest/run.ps1`：桩 ZDSRAPI DLL 造出「DLL 不在 / 未授权 / 可用 / 掉线」，71 条断言（0.2.0.0 时 64 条，0.2.1.0 增至 71） | 判据确实是 `GetSpeakState ∈ {3,4}`，未授权时**不会**被 `Speak()==0` 骗过 |
-
 | `platform/Hotkey.cs` 的按键解析 | 同上（20 条断言，Unity 的 `Input` 不参与） | `Alt+Shift+F9` 这类写法可用；`"0"` 这类 G3 陷阱被拒绝 |
 | 争渡安装目录能被自动找到 | 同上：`RegistryInstallDirs()` 读真实注册表 | 本机返回 `C:\Program Files (x86)\zdsr\zdsr`（`DisplayName=争渡读屏`） |
 | 旧 dll 不会卡死玩家 | 同上：第一份桩 `InitTTS` 固定返回 1，第二份正常 | 自动落到第二份；全都不匹配时给出可读原因 |
