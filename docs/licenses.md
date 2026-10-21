@@ -16,8 +16,8 @@ NVDA Controller Client、UnityDoorstop 等也不带。
 | 文件 | 组件 | 许可 | 版权 / 出处 |
 |---|---|---|---|
 | `MIT-BepInEx.txt` | BepInEx 5.x（`v5-lts` 分支，含 5.4.23.5） | MIT | Copyright (c) 2018 Bepis |
-| `LGPL-2.1-BepInEx.txt` | BepInEx 6.x（`master` / v6） | LGPL-2.1 | BepInEx Team |
-| `MIT-BepInEx.Harmony.txt` | BepInEx.Harmony | MIT | BepInEx 项目 |
+| `LGPL-2.1-BepInEx.txt` | BepInEx 6.x（`master` 分支） | LGPL-2.1 | BepInEx Team |
+| `MIT-BepInEx.Harmony.txt` | BepInEx.Harmony | MIT | BepInEx 项目（上游版权行留空，按原样保留） |
 | `MIT-HarmonyX.txt` | HarmonyX | MIT | Copyright (c) 2020 BepInEx |
 | `MIT-HarmonyX-AndreasPardeike.txt` | HarmonyX 的上游（Harmony 2） | MIT | Copyright (c) 2017 Andreas Pardeike |
 | `MIT-Harmony.txt` | Harmony（旧版） | MIT | Copyright (c) 2017 Andreas Pardeike |
@@ -39,7 +39,7 @@ NVDA Controller Client、UnityDoorstop 等也不带。
 | `MIT-SemanticVersioning.txt` | SemanticVersioning | MIT | Adam Reeve |
 | `MIT-uTinyRipper.md` | uTinyRipper | MIT | mafaca |
 | `MIT-dotnet-runtime.txt` | .NET runtime | MIT | .NET Foundation |
-| `Apache-2.0-Dobby.txt` | Dobby（UnityDoorstop 的依赖） | Apache-2.0 | jmpews |
+| `Apache-2.0-Dobby.txt` | Dobby（BepInEx 6 / IL2CPP 运行时的依赖） | Apache-2.0 | jmpews |
 
 > - 上表是**文本**清单，不等于发布包必须包含的组件清单；逐作发布时按该作实际随包的
 >   二进制重新列一遍（范例见下）。
@@ -62,6 +62,8 @@ NVDA Controller Client、UnityDoorstop 等也不带。
 | `THIRD-PARTY-NOTICES.example-belfry-mono.txt` | BelfryForAccessibility | Mono | 含 NVDA Controller Client、BepInEx 5 |
 | `THIRD-PARTY-NOTICES.example-noexistence-il2cpp.txt` | TheNOexistenceNForAccessibility | IL2CPP | 含 Il2CppInterop、BepInEx 6、Cpp2IL |
 | `THIRD-PARTY-NOTICES.example-transparenther-mono.txt` | TransparentHerForAccessibility | Mono | 含 NVDA Controller Client、BepInEx 5 |
+
+`tools/new_game.py` 生成骨架时**只拷上面 24 份许可证原文**（不含三份范例与 `il2cppinterop-pr277.patch`），因为范例是别的作品的通知文本。
 
 三份范例的组件与版本各不相同，**逐作发布时必须重写**，不要直接抄；三份都单列了
 争渡 ZDSRAPI（专有、非开源、**未取得书面许可**；两份 Mono 范例是第 8 项，IL2CPP 那份

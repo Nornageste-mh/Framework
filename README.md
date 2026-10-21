@@ -445,7 +445,7 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 | 平台层**无 `Plugin.` 引用** | 组装脚本断言 + `compile_check.ps1` 静态检查 | 接口确实已经全部改指 `A11yHost` |
 | 平台层**能挂上逐作 partial** | 用一份最小 `UiNav.Game.cs` 占位实现参与编译 | partial 拆分的接口是完整的 |
 | 三作差异矩阵 | 对 `main` 克隆后按 SHA256 逐文件比对 + 归一化 `namespace` 后 `diff -U0` | 见流水线 §1.1 |
-| `tools/new_game.py` 能生成干净的骨架 | 冒烟测试：生成 59 个文件（27 个渲染文件 + `licenses/` 28 份 + `.gitignore`/`.gitattributes` + `check-staged.ps1` + `README.md`），**无残留占位符、无上一作标识**，`.ps1` 带 BOM，csproj 按路线正确裁剪 | 骨架生成这一环是通的 |
+| `tools/new_game.py` 能生成干净的骨架 | 冒烟测试：生成 55 个文件（27 个渲染文件 + `licenses/` 24 份许可证原文 + `.gitignore`/`.gitattributes` + `tools/compile_check.ps1` + `README.md`），**无残留占位符、无上一作标识**（三份姊妹作通知范例与上游补丁片段不随骨架生成），`.ps1` 带 BOM，csproj 按路线正确裁剪 | 骨架生成这一环是通的 |
 | `tools/assemble_from_sources.py` 可复现 | 源仓库处于组装时的提交，重跑一遍后 `git status` 为空 | `licenses/` 重跑后逐字节一致、`git status` 为空；`platform/` 自 0.2.0.0 起有手工演进（`Repeat.cs`、争渡后端、注释更正），默认不重生成，要重生成才加 `--refresh-platform`；`build/`、`probe/`、`templates/probe/` 已按新作通用化、改为手工维护，要重生成才加 `--refresh-generated` |
 | `platform/Zdsr.cs` 的选路与失败路径 | `tools/zdsr_selftest/run.ps1`：桩 ZDSRAPI DLL 造出「DLL 不在 / 未授权 / 可用 / 掉线」，71 条断言（0.2.0.0 时 64 条，0.2.1.0 增至 71） | 判据确实是 `GetSpeakState ∈ {3,4}`，未授权时**不会**被 `Speak()==0` 骗过 |
 
@@ -497,7 +497,7 @@ HarmonyX、Mono.Cecil、MonoMod、NVDA Controller Client）。
 **BepInEx 官方 zip 里一个许可证文件都不带**，所以这些得自己列。
 完整清单与范例见 `licenses/THIRD-PARTY-NOTICES.example-*.txt`；其中
 **争渡读屏的 `ZDSRAPI.dll` / `ZDSRAPI_x64.dll` 是专有软件**，不属于 MIT / LGPL 任何一项，
-本仓库也不随附。若你在发布包里放一份兜底副本，请先自行确认已获授权，并按范例第 8 项
+本仓库也不随附。若你在发布包里放一份兜底副本，请先自行确认已获授权，并按范例里的争渡单列项
 把它单列进 `THIRD-PARTY-NOTICES.txt`。
 
 **一条容易记反的事**：
@@ -515,7 +515,7 @@ HarmonyX、Mono.Cecil、MonoMod、NVDA Controller Client）。
 
 ## 许可
 
-本仓库的**补丁框架代码与文档**（`platform/`、`contract/`、`templates/`、`build/`、`docs/`）
+本仓库**除 `licenses/` 之外的全部内容**（`platform/`、`contract/`、`templates/`、`build/`、`probe/`、`tools/`、`docs/`）
 由本项目的维护者编写，供制作同类无障碍补丁时复用，采用 [MIT 许可](LICENSE) 发布；
 附加的署名**请求**（不是条件）、非官方声明与免责条款见 [NOTICE.md](NOTICE.md)。
 

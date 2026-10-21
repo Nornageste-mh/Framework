@@ -179,8 +179,13 @@ def main():
     os.makedirs(lic_dst, exist_ok=True)
     for fn in sorted(os.listdir(lic_src)):
         sp = os.path.join(lic_src, fn)
-        if os.path.isfile(sp):
-            shutil.copy2(sp, os.path.join(lic_dst, fn))
+        if not os.path.isfile(sp):
+            continue
+        # 三份 THIRD-PARTY-NOTICES.example-* 是姊妹作发布包里的真实范例（含别的
+        # 作品的名称与 AppID），*.patch 是上游补丁片段 —— 都不该进新作的骨架。
+        if fn.startswith("THIRD-PARTY-NOTICES.example-") or fn.endswith(".patch"):
+            continue
+        shutil.copy2(sp, os.path.join(lic_dst, fn))
 
     # ---- 根文件 ----
     for fn in (".gitignore", ".gitattributes"):

@@ -165,15 +165,15 @@
 - **`docs/licenses.md` 的两处事实错误**：Capstone 不是 Tolk 的依赖（属 IL2CPP 工具链）；
   三份通知范例是「未取得书面许可」而非「责任自负」，且只有两份 Mono 范例是第 8 项、
   IL2CPP 那份是独立小节。`CHANGELOG.md` 的转述同步更正。
-- **可机械核对的数字**：`README.md` 的骨架冒烟测试由「54 个文件」改为 **59 个**
-  （27 个渲染文件 + `licenses/` 28 份 + `.gitignore`/`.gitattributes` +
-  `check-staged.ps1` + `README.md`）。断言数 71 条（含 `Case_RegistryLookup`
+- **可机械核对的数字**：`README.md` 的骨架冒烟测试由「54 个文件」改为 **55 个**
+  （27 个渲染文件 + `licenses/` 24 份许可证原文 + `.gitignore`/`.gitattributes` +
+  `tools/compile_check.ps1` + `README.md`；三份姊妹作通知范例与上游补丁片段不再随骨架生成）。断言数 71 条（含 `Case_RegistryLookup`
   在争渡未安装时跳过一条）复核无误。
 - **守卫脚本的路径**：`README.md` 与 `.gitignore` 原写 `build/check-staged.ps1`，
   实际只有 `build/check-staged.ps1.template`（由 `tools/new_game.py` 生成到
   新作的 `tools/check-staged.ps1`）。两处都已改正。
 - **历史脱敏的口径收窄**：`filter-branch` 换掉的是作者本机的实验目录前缀（统一为
-  `D:\work\…`）；历史里仍留着 `D:\work\…`、`D:	ools\w64devkit\…` 这类**不含用户名**的
+  `D:\work\…`）；历史里仍留着 `D:\work\…`、`D:\tools\w64devkit\…` 这类**不含用户名**的
   通用路径，按原样保留。原文写「本机工作目录已重写脱敏」过宽，已按事实收窄。
 - **`platform/` 不再默认重生成**：0.2.0.0 起该目录有手工演进（`Repeat.cs`、争渡后端），
   再整份重建会删掉手工成果。组装脚本因此新增 `--refresh-platform`，默认只重写
