@@ -87,7 +87,7 @@ notices and license texts must be preserved.
 | HarmonyX | MIT | BepInEx 项目 | 同上 |
 | UnityDoorstop | LGPL-2.1 | Neighhiola | 同上 |
 | NVDA Controller Client | LGPL-2.1 | NV Access | 本仓库不随附；由使用方自行取得 |
-| Tolk | BSD-3-Clause | ndarilek | 可选；本仓库不随附 |
+| Tolk（可选） | LGPL-3.0 | Nolan Darilek（ndarilek）等 | **不是 BSD**（上游 `LICENSE.txt` 为 LGPL-3.0）；本仓库不随附 `Tolk.dll`，若随包分发须按 LGPL-3.0 履行相应义务 |
 | 争渡读屏 ZDSRAPI（可选） | **专有软件**（非开源） | 争渡读屏（ZDSR）的作者 / 发行方 | 本仓库**不随附**其 DLL；发布包若放兜底副本，须自行取得授权并自负责任；本项目未取得其书面许可 |
 
 分发本软件时，须保留上述组件的原始版权声明与许可文本。若你重新分发本项目的
