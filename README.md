@@ -63,6 +63,7 @@ TransparentHer 就是这么丢掉 `[朗读]` 诊断日志块和 `UiNav.Diag()` �
 │   platform/UiNav.cs   Unity Selectable 通用导航引擎        │
 │   platform/KeyEdge.cs 带「松开闩锁」的单次按键检测（见下） │
 │   platform/Hotkey.cs  "F9"/"Alt+Shift+F9" 按键描述解析    │
+│   platform/GlobalKeys.cs Win32 全局按键（窗口没焦点时兜底）│
 │   platform/Repeat.cs  重读缓冲区 —— **唯一出口，逐作绕不过** │
 ├──────────────────────────────────────────────────────────┤
 │ L2 契约层（每作一个薄适配文件，固化 ABI）                  │
@@ -261,9 +262,52 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 ### `Hotkey.cs` —— 按键描述解析
 
 - 支持 `F9` / `Alt+Shift+F9` / `Ctrl+Alt+F9` / 留空停用；左右两侧的修饰键按同一个处理
+- 0.2.3 起支持 `Ctrl+Alt+Plus`（也认中文「加号」）：主键映射到 `KeyCode.Equals`
+  并**强制要求 Shift 按住**（主键盘 `+` 本来就是 Shift+Equals）。小键盘加号
+  （`KeypadPlus`）是另一个键，**不会**触发；纯 `Ctrl+Alt`（没有主键）也不会触发。
+  用途：《不/存在的莉莉丝》把导航开关定成「Ctrl+Alt+主键盘加号」，避开游戏自带的
+  9 条 `Ctrl+Alt+字母` 热键
+- 全局按键（0.2.3）：`Hotkey` 通过 `GlobalHeld` / `GlobalPressed` 两个委托接收
+  `GlobalKeys`，自己不引用它 —— 否则本文件就没法被 `tools/zdsr_selftest` 单文件编译
 - 拒绝纯数字（`Enum.TryParse("0")` 会成功但得到 `KeyCode.None`，流水线 G3）
 - 配置写错时返回人话原因，由调用方决定怎么记日志 —— 本文件不写日志、不引用 A11yHost，
   所以能被独立自检程序直接编译
+
+### `GlobalKeys.cs` —— 窗口拿不到焦点时的按键兜底（0.2.3）
+
+**问题（实机取证）**：《不/存在的莉莉丝》的 Unity 窗口 `class = UnityWndClass`、
+`exstyle = 0x080800B0`（`WS_EX_NOACTIVATE | LAYERED | TOOLWINDOW | TOPMOST | TRANSPARENT`）。
+默认「单击穿透」模式下它**永远拿不到键盘焦点** —— `SetForegroundWindow` /
+`AttachThreadInput` / `SwitchToThisWindow` 都试过，前台始终是 Program Manager 或浏览器。
+于是 `UnityEngine.Input` 读不到任何键，UiNav 的导航开关、方向键、回车、数字键
+**全部静默失效**。这不是绑定问题，是焦点依赖。
+
+**做法**：Win32 `GetAsyncKeyState` **轮询**全局按键状态。
+
+- 不装全局钩子（`SetWindowsHookEx`）、不做 DLL 注入、不碰游戏线程
+- 不依赖窗口焦点：前台是任何程序都能读到（这正是需求）
+- `GetAsyncKeyState` 只回答「现在是否按住」，没有按下沿 —— 边沿由
+  `GlobalKeys.Pressed` / `KeyEdge.Pressed` 的静态表自己算（`held && !prev`）
+- 非 Windows / 拿不到 `user32.dll` 时 `Available` 一次探测后固定 `false`，
+  **永不重试**，调用方自动退回纯 `Input`，不抛异常也不刷日志
+- 只引 `UnityEngine`（`KeyCode`）与 `System.Runtime.InteropServices`；
+  KeyCode→VK 表覆盖 Tab / Return / 方向键 / 翻页 / 首尾 / 字母数字 / 小键盘 /
+  常用符号（含 `Equals` `Minus` `KeypadPlus`）/ 左右修饰键 / F1–F12
+
+**怎么开**（逐作显式，默认关）：
+
+```csharp
+A11yHost.UseGlobalKeys = true;   // Plugin.Awake；窗口拿不到焦点的作才需要
+```
+
+打开后 `KeyEdge` 与 `Hotkey` 的 held/down 都取「`Input` 或全局」并集；
+其余行为与 0.2.2 逐字节一致。开关的接线方向是 platform → contract：
+`A11yHost` 只放一个 bool，平台层每帧懒同步它（`GlobalKeys.Reading`），
+契约层不反向引用平台层。
+
+> **安全边界**：`GetAsyncKeyState` 读的是**整机**按键状态，与前台是谁无关。
+> 打开后玩家在别的程序里按导航键也会触发 —— 这是「全程焦点可用」的实现代价，
+> 所以必须逐作显式打开，不能做成平台默认。
 
 ### `UiNav.cs` —— 通用导航引擎
 
@@ -466,6 +510,7 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 | `UiNav` 的 partial 拆分没有行为改变 | 拆法是机械的（可见性一个都没动），但**没有实机回归** |
 | **游戏里那一声是不是争渡念的** | 争渡作为读屏本身也在念东西，从进程外无法把某句话归因到它。目前是「宿主测试证明通路真出声」＋「游戏内日志证明后端切到了争渡」两段拼起来 |
 | 修饰键写法在游戏里真按过 | 只在解析层与宿主里验过；`Alt+Shift+F9` 没在游戏里按过 |
+| `GlobalKeys` 的全局按键在游戏里真按过 | 只做了编译与静态语义检查（`compile_check` 0/0）；`GetAsyncKeyState` 的「按下沿自算」「+ 号只认主键盘」需要在实机里按一遍，见 CHANGELOG 0.2.3.0 |
 
 > 按流水线 §6 P4 的**诚实纪律**：CHANGELOG 里明确标注「尚未实机复测」的条目是允许的，
 > 把未验证的东西标成已验证是**不允许**的。

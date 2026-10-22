@@ -18,6 +18,9 @@
 
 | 版本 | 日期 | 要点 |
 |---|---|---|
+| 0.2.4.0 | 2026-10-22 | 实机导航日志暴露的三个平台层缺陷：**行标签被未激活控件挡掉**（`HasOtherSelectable`/`FirstTextOutside` 只认可见控件）、**alpha≈0 的预制体占位入列**（`VisiblyClickable` 加 `CanvasGroup` 门槛）、**未命名控件没有降级行为就直接激活**（`IsUnnamedLabel` + 复用 `CfgUnknownConfirm` 二次确认，关掉则硬阻止）；compile_check 通过（0 警告 0 错误） |
+| 0.2.3.0 | 2026-10-22 | 用户要求导航开关「全程焦点也能用」：新增 `platform/GlobalKeys.cs`（Win32 `GetAsyncKeyState` 轮询，不装钩子、不注入）+ `A11yHost.UseGlobalKeys`（默认 false，只增不改）；`KeyEdge` / `Hotkey` 改为「`Input` 或全局」并集；导航键定为 **Ctrl+Alt+主键盘加号**（`Hotkey.Parse` 支持 `Plus`/「加号」，强制 Shift+Equals，小键盘加号不算）；compile_check 通过（0 警告 0 错误） |
+| 0.2.2.0 | 2026-10-22 | 用户反馈的两个问题：**读不到文字时不再念对象名/类型名/ID**（分层标签 + 结构化语义降级 + 降级确认），**导航开关改为可配组合键**（`A11yHost.NavTogglePressed` 钩子，本作 `Ctrl+Alt+G`）；另修 **IL2CPP 下 16 处 `as`/`is`/`GetType()` 判组件类型的阻断级 bug**；compile_check 通过（0 警告 0 错误） |
 | 0.2.1.0 | 2026-10-16 | **争渡 dll 自动定位**（读注册表登记的安装目录）+ **旧 dll 自动跳过**（`InitTTS=1` → 换下一份候选）+ `A11Y_ZDSR_DIR` 支持多目录；自助检 **71 条** |
 | 0.2.0.0 | 2026-10-15 | **新增争渡读屏（ZDSR）后端**（`platform/Zdsr.cs`）+ **运行中切换后端**（`platform/Hotkey.cs` / `Speech.CycleAvailable`）+ 机械自检 `tools/zdsr_selftest/`（64 条断言，桩 DLL 驱动，不需要真读屏；0.2.1.0 增至 71 条） |
 | 0.1.1.0 | 2026-09-27 | **重读缓冲区提升为 L1**（`platform/Repeat.cs`）+ `lint_repeat.ps1` 静态断言：逐作层绕不过去。同一个坑在四个仓库里踩了两次 |
@@ -25,6 +28,137 @@
 | 0.1.0.1 | 2026-09-27 | 界面标签四钩子（文本噪声 / 逐作标签 / 组名 / 组序）+ 进组播报全组总览；修掉新作骨架的两个致命 bug（漏拷 KeyEdge.cs、csproj 注释里的连续减号） |
 | 0.1.0.0 | 待填 | 从三个已发布仓库逆向固化的平台层 + 契约层初版 |
 | 未发版 | 2026-10-21 | 公开前修订：免责声明与许可口径、探针文本转储默认关闭、脚本通用化与本机路径脱敏 |
+
+---
+
+## 0.2.4.0 — 实机导航日志暴露的三件事：**看不见的不算、读不出的不点、占位的不念**
+
+### 一、行标签被「未激活的控件」挡掉
+
+实机日志（设置面板）：`[UiNav] 未命名控件：类型=按钮 原始名=Btn_Swtich_Off` ——
+同一行明明有 `text_Name`（「游戏时不显示」）。
+
+根因在 `platform/UiNav.cs` 的 `HasOtherSelectable`：
+`GetComponentsInChildren<Selectable>(true)` 把**未激活**的 `ToggleItem`/`Toggle`
+也算成「这一行里还有别的控件」→ 判定该行是「面板」→ `FirstTextOutside` 直接
+`return ""`，行标签永远拿不到，开关只能读成「未命名按钮」。
+
+修法：
+
+- `HasOtherSelectable` 只统计 `activeInHierarchy` 且不 `AlphaHidden` 的控件；
+- `FirstTextOutside` 的候选文字同样只收 `activeInHierarchy`、不 alpha 隐藏的；
+- 候选文字上溯找「别的控件」时改用新增的 `VisibleControlOn(t)`：
+  未激活 / 透明的控件不再是阻断项。
+
+### 二、alpha≈0 的预制体占位按钮进了导航列表
+
+实机日志：`[组 2] Lilith/Canvas/PlayerLine 项数=16`，条目是
+`Root/Root (3)/Button (3)` 这类占位。它们是 **active 的**，矩形在 Canvas 内，
+UI 射线也能打中 —— 旧 `VisiblyClickable` 的两道判据全过，于是被当成可操作项。
+
+新增 `AlphaHidden(Transform t)`：从控件往上最多 12 层，任意一层
+`CanvasGroup.alpha ≤ 0.05`（`AlphaVisibleThreshold`）即视为看不见。
+`VisiblyClickable` 第一道就过这个门槛 —— 比发射线便宜，也纠正了
+「射线打得到所以可见」的错误推理。
+
+不新增配置：仍受 `CfgVisibleOnly` 控制；关掉它就回到旧行为（诊断对比用）。
+
+### 三、未命名控件「没有降级行为就激活」
+
+用户原话：**「中途没有降级行为就执行了这个操作」**。实机日志：
+`[UiNav] 激活原始对象：路径=.../Button (2) 来源=own 质量=Bound` ——
+占位按钮还能捡到一段占位文字（`Bound`），旧实现只对 `Semantic`/`Raw` 做二次确认，
+于是第一次回车就直接点了。
+
+- 新增 `IsUnnamedLabel(Selectable)`：标签只能落到「未命名<类型>，第 N 项」
+  （`Quality == Semantic`，或 `Raw` 且 `CfgSpeakRawName` 关闭）时为真。
+- 回车/空格提交时：
+  - 未命名 + `CfgUnknownConfirm` 开（默认）→ 第一次只念
+    「<描述>。未命名控件，已阻止操作。再按一次确认；按别的键取消。」，
+    **不调 `Activate`**；第二次才真正激活（8 秒窗口，复用降级确认状态机，
+    不新增配置）；
+  - 未命名 + `CfgUnknownConfirm` 关 → 硬阻止、永不激活，原始路径写 Diag；
+  - 有中文标签或逐作 `GameLabelOf` 标签（`Bound`/`Nearby`）→ 行为不变，
+    不会误伤正常按钮。
+- 原始对象名/路径仍然只进 Diag 日志，不进朗读。
+
+### 四、兼容性与边界
+
+- 纯增量：`AlphaHidden` / `VisibleControlOn` / `IsUnnamedLabel` 都是私有新函数，
+  现有成员签名与配置项不变。
+- 收紧只作用于「隐藏控件 / 透明占位」：前三作里这类控件本来就不该念、不该点。
+- 唯一的行为变化：未命名控件不再第一次就激活。`CfgUnknownConfirm=false`
+  是「更安全」而不是「回到旧行为」；要恢复直接激活，得靠逐作的
+  `GameLabelOf` / `GameGroupName` 或可见文字把标签补起来。
+- 逐作标签与组名（`UiNav.Game.cs`）不在本版范围，由逐作层处理。
+- `compile_check.ps1` 通过（0 警告 0 错误）；实机复验由 Lead 重启游戏完成。
+
+---
+
+## 0.2.3.0 — 窗口拿不到焦点时，按键怎么办：**全局按键兜底 + 主键盘加号**
+
+### 一、问题：不是绑定错了，是窗口永远没有键盘焦点
+
+《不/存在的莉莉丝》的 Unity 窗口：`class = UnityWndClass`、
+`exstyle = 0x080800B0`（`WS_EX_NOACTIVATE | LAYERED | TOOLWINDOW | TOPMOST |
+TRANSPARENT`）。默认「单击穿透」模式下它**不能激活**；实机连试三次
+`SetForegroundWindow` / `AttachThreadInput` / `SwitchToThisWindow` 都拿不到焦点
+（前台始终是 Program Manager / 浏览器），期间发 `Ctrl+Alt`、`Tab` 没有任何
+UiNav 日志。结论：**`UnityEngine.Input` 读不到任何键**，UiNav 的导航开关、
+方向键、回车、数字键全部静默失效。这不是绑定问题，是焦点依赖。
+
+### 二、做法：`GetAsyncKeyState` 轮询（不装钩子、不注入）
+
+新增 `platform/GlobalKeys.cs`（L1，只引 `System.Runtime.InteropServices` + `UnityEngine`）：
+
+- 只用 `[DllImport("user32.dll")] GetAsyncKeyState` **轮询**当前按键状态；
+  **不装全局钩子**（`SetWindowsHookEx`）、**不做 DLL 注入**、不碰游戏线程。
+- 不依赖窗口焦点：前台是任何程序都能读到 —— 这正是需求。
+- `GetAsyncKeyState` 只回答「现在是否按住」，没有按下沿：边沿由
+  `GlobalKeys.Pressed` / `KeyEdge.Pressed` 的静态表自己算（`held && !prev`）。
+- 可用性一次性探测：非 Windows / 没有该导出 → `Available = false` **且永不重试**，
+  调用方自动退回纯 `Input`，不抛异常、不刷日志。
+- KeyCode→VK 表覆盖 Tab / Return / KeypadEnter / Space / 方向键 / PageUp / PageDown /
+  Home / End / 字母 / 主键盘数字 / 小键盘数字与符号 / 常用符号（含 `Equals` `Minus`
+  `KeypadPlus`）/ 左右修饰键 / F1–F12；未映射的键一律 `false`（宁可读不到，不猜错）。
+- 全局模式下 `Input.anyKeyDown` 也失效，`ModifierChordDown` 的「按住期间按了别的键」
+  改用「武装时快照 + 快照外新按键」判定（`FillOtherKeySnapshot` / `AnyNewOtherKeyHeld`）。
+
+### 三、开关：`A11yHost.UseGlobalKeys`（只增不改，默认 false）
+
+- `contract/A11yHost.cs` 新增 `public static bool UseGlobalKeys`，默认 `false`，
+  逐作填 `true`；`Clear()` 里恢复 `false`。
+- 打开后 `KeyEdge.Pressed` / `Hotkey.Down` 的 held/down 取「`Input` 或全局」并集，
+  其余语义（闩锁、修饰键必须精确匹配）一条不动。
+- **接线方向保持 platform → contract**：契约层只放 bool，平台层每帧懒同步
+  （`GlobalKeys.Reading → SyncWithHostSwitch`），不让契约层反向引用平台层。
+- `Hotkey.cs` 通过 `GlobalHeld` / `GlobalPressed` 两个委托接收全局状态，而不是直接
+  引用 `GlobalKeys` —— 它必须能被 `tools/zdsr_selftest` 单文件编译（只 Include
+  `Zdsr.cs` + `Hotkey.cs`）。
+
+> **安全边界**：`GetAsyncKeyState` 读的是**整机**按键状态，与前台是谁无关。
+> 打开后玩家在别的程序里按导航键也会触发。所以这是逐作显式开关，不是平台默认。
+
+### 四、导航键改为「Ctrl+Alt+主键盘加号」
+
+- `Hotkey.Parse` 新增 `Plus` / 「加号」token：主键映射到 `KeyCode.Equals`，
+  并**强制要求 Shift 按住**（主键盘 `+` 本来就是 Shift+Equals）。
+  于是：**小键盘加号（`KeypadPlus`）不触发**、**纯 `Ctrl+Alt`（没有主键）不触发**、
+  `Ctrl+Alt+字母`（游戏自带的 9 条热键）也不会被误判 —— 主键对不上。
+- 想读小键盘加号就显式写 `KeypadPlus`；VK 表里 `Equals` / `Minus` / `KeypadPlus`
+  三个键都在，方便实机验证「只认大键盘加号」。
+- README 的「`Hotkey.cs` —— 按键描述解析」「`GlobalKeys.cs` —— 窗口拿不到焦点时的
+  按键兜底」「尚未验证的部分」三处同步更新。
+
+### 五、兼容性与未验证
+
+- 默认关闭：前三作不填 `UseGlobalKeys`，`GlobalKeys.Reading` 恒 `false`，
+  `KeyEdge` / `Hotkey` 的新分支整体跳过，行为与 0.2.2 逐字节一致。
+- `framework/tools/compile_check.ps1` PASS：静态断言 6 项 ok、引用 9 个程序集
+  **不含 `Assembly-CSharp.dll`**、`dotnet build` **0 警告 0 错误**。
+- **尚未实机复测**（诚实纪律）：`GetAsyncKeyState` 的按下沿自算、「加号只认主键盘、
+  小键盘不触发」、「窗口没焦点时真的能切导航」三项都需要实机按一遍
+  —— 目前只有编译与静态语义检查。
 
 ---
 
@@ -184,6 +318,182 @@
 - **模板的性质写清楚**：`templates/game/UiNav.Game.cs.template` 与
   `templates/probe/ProbePlugin.cs.template` 里仍带上一作的类型名与成员，它们是
   **换作时的示例片段**，不是能直接编译的成品 —— README 的验证表下已加说明。
+
+---
+
+## 0.2.2.0 — 读不到文字时念什么、以及「激活」到底该不该立刻发生
+
+用户反馈两个问题，它们其实是同一件事的两面：
+
+> 1) 控件绑定的 Text 读不到时会直接念 GameObject 名 / 类型名 / ID，
+>    而且**没有降级行为就执行激活**。
+> 2) 本作导航模式快捷键要求是 **Ctrl+Alt**（组合键），不能和游戏自身热键冲突。
+
+### 一、先修防御性正确性：IL2CPP 下 16 处 `as` / `is` / `GetType()` 判组件类型
+
+这一条是**防御性正确性改动**，不是本次实机确认的故障：《不/存在的莉莉丝》实机
+（Il2CppInterop 1.5.3）里 `GetComponent<RectTransform>()` 与 `transform is RectTransform`
+都返回了正确结果，62 个 `Selectable` 全部扫到，**没有复现**「零控件 / 全念 Selectable /
+读不到文字」。但 Il2CppInterop 的代理是**按「方法声明返回类型」造对象**的
+（`s.transform` 的声明类型是 `Transform`），`as`/`is` 能不能过取决于具体版本与类型映射。
+平台层不该把正确性押在代理实现上——所以 16 处统一改成原生类型判断
+（`GetComponent<T>()`），语义不变、行为不变，只是不再依赖代理细节。
+
+在会复现的运行时上（旧版 Il2CppInterop / 代理没做类型还原时），这些判定的表现是：
+
+    s.transform is RectTransform     → 恒 false（哪怕底层真是 RectTransform）
+    c as TextMeshProUGUI             → 恒 null
+    s as Toggle / s is Button …      → 恒 null / 恒 false
+    s.GetType().Name                 → 恒 "Selectable"（声明类型，不是原生类）
+
+而且**全部静默**：不抛异常、不写日志 —— 界面明明有按钮却一个都扫不到、所有控件
+都念 Selectable、文字一个都读不出来，全都不会留下线索。这正是不值得赌代理实现的原因。
+
+统一改成 `GetComponent<T>()`（原生层判断类型），对象比较仍用 Unity 的 `==`：
+
+| 原行 | 原写法 | 改为 |
+|---|---|---|
+| 321 | `s.transform is RectTransform`（Scan 第一道过滤器） | `s.GetComponent<RectTransform>() == null` |
+| 466 | `c.transform as RectTransform`（GroupOf 的 Canvas 矩形） | `c.GetComponent<RectTransform>()` |
+| 509 / 606 / 671 | `s.transform as RectTransform`（排序 / 可见性 / 行列） | `s.GetComponent<RectTransform>()` |
+| 872 / 874 | `c as TextMeshProUGUI` / `c as Text`（文本唯一收口） | `c.GetComponent<TextMeshProUGUI>()` / `GetComponent<Text>()` |
+| 1077-1079 | `s as Toggle` / `s as Slider` / `s as TMP_InputField`（Describe） | 三个 `GetComponent<T>()` |
+| 1094-1095 | `s is Button` + `s.GetType().Name` | `ControlTypeName(s)`（真实类型的中文说法） |
+| 1340 | 激活日志里的 `s.GetType().Name` | `ControlTypeName(s)`（日志也只给真实类型） |
+| 1353 / 1365 / 1374 | `s as TMP_InputField` / `s as Toggle` / `s as Slider`（Activate） | 三个 `GetComponent<T>()` |
+| 1381 | `s as Button`（Activate） | `s.GetComponent<Button>()` |
+| 1436 | `s as Slider`（Adjust：左右键调滑条） | `s.GetComponent<Slider>()` |
+
+纪律写进了 `UiNav.cs` 文件头：**平台层不许用 `as`/`is` 判 Unity 组件类型**，
+也不引入 Il2CppInterop（契约层红线）。
+
+同一轮 IL2CPP 实机编译还暴露了一处**跨运行时签名差异**：`EventSystem.RaycastAll`
+的第二个参数在 Mono 版是 `System.Collections.Generic.List<RaycastResult>`，
+在 Il2CppInterop 里是 `Il2CppSystem.Collections.Generic.List<RaycastResult>`
+（传 System 的 List 直接 CS1503）。写死任何一边都会让另一边编不过，而引用
+Il2CppInterop 又违反红线 —— 所以 `VisiblyClickable` 的射线改成
+`RaycastAllCompat`（反射拿运行时的 MethodInfo、按**实际参数类型**造列表、
+再按 `IEnumerable` / `Count`+`Item` 读回 `List<RaycastResult>`）。
+拿不到结果时按「判不出遮挡」处理（不排除控件），绝不因为一次反射失败把整屏项漏掉；
+MethodInfo 只查一次，且只有 `CfgVisibleOnly` 打开时才走这条路。
+
+### 二、读不到文字：分层标签 + 结构化语义降级
+
+旧 `TextOf` 的最后一行是 `return AncestorNameOf(s)`，而 `AncestorNameOf` 最后
+`return s.gameObject.name` —— 这保证它**永远返回非空字符串**，调用方无法区分
+「真标签」和「对象名」。对象名还经常长得像人话（`Exit` / `Load` / `Close`），
+玩家会以为听到的就是那个按钮的名字。
+
+现在标签和它的可信度一起返回（`LabelResult{Text, Quality, Source}`）：
+
+| Quality | 来源 | 处理 |
+|---|---|---|
+| `Bound` | 控件子树文字 / 逐作 `GameLabelOf` | 照念 |
+| `Nearby` | 别名表 / 同一行兄弟文字 / 输入框占位提示 | 照念 |
+| `Semantic` | 以上全失败 | 念 **「未命名按钮，第 3 项，共 7 项，面板设置」** |
+| `Raw` | 原始对象名（`AncestorNameOf`） | **默认不念**（`A11yHost.CfgSpeakRawName` 默认 false），原始名只进诊断日志 |
+
+`TextOf` 保留为兼容包装（返回 `.Text`）；朗读一律走 `LabelText`。
+
+顺带修了三处相关的退化：
+
+- **占位文本要先判噪**：`OwnTextOf` 原来不过 `A11yHost.GameTextIsNoise` 就返回，
+  导致预制体占位字（`New Text` / `Button`）被当成可读标签，`GameLabelOf` 那条逐作
+  钩子永远轮不到被调用 —— 现在先过噪再判空。
+- **不念英文对象名当组名**：`GroupName` 原来没钩子就念 Canvas 顶层祖先名
+  （`Right` / `UpRight` / `Canvas`）。现在：钩子 → 名字含中日韩字符（照念）→
+  `CfgSpeakRawName` 打开（照念）→ 中性兜底 **「面板 + 组号」**（`面板1` / `面板2`，
+  多组时不至于全叫「面板」）。
+- **不念本地化 key**：输入框标签 / 占位提示 / 当前内容像 `UI.Setting.Name` 这种
+  内部 key 时跳过（保守判断：含 `.`/`_` 分隔、全可见 ASCII、无空格、至少两段；
+  `Start` 这类真英文标签不会被误挡）。
+
+### 三、降级确认：推断标签下的激活必须按两次
+
+标签是推断出来的（`Semantic`，或 `Raw`）时，`UiNav.Update` 在退出确认之后、
+`Activate` 之前插了一道状态机：
+
+    第一次按回车/空格 → 重复朗读 + 「这一项读不出可读文字。再按一次确认；按别的键取消。」
+    第二次按同一项   → 真正 Activate
+    8 秒不按 / 换项 / 换组 / 退出导航 / 场景切换 → 自动清除
+
+配置 `A11yHost.CfgUnknownConfirm`（默认 **true**，null 也按 true）。
+退出确认**优先**：已武装退出确认时不再叠降级确认（否则退出要按三次回车）。
+清理点覆盖 `ExitInternal`、`Announce`（方向键/换页/Home/End 都走它）、
+`Update` 每帧的 `ValidateDegradedConfirm` 兜底。
+
+### 四、导航开关：平台只收一个布尔，组合键留给逐作
+
+平台层不再写死 Tab。新增**只增不改**钩子：
+
+    internal static Func<bool> A11yHost.NavTogglePressed;
+
+    // UiNav.Update
+    navToggle = hook != null ? hook() : KeyEdge.Pressed(KeyCode.Tab);
+
+钩子留空 = 前三作行为逐字节不变（Tab）。组合键放逐作层，因为：
+
+- `Hotkey.cs` 的组合键语义要求**必须有主键**（`Ctrl+Alt` 单独写不成立，
+  它同时会拒绝 `Ctrl+Alt+X` 这种「组合键 + 第三个键」误判为主键按下）；
+- 边沿闩锁（`_navKeyLatched`，抬起复位）必须和「输入框聚焦时抢不抢键」放在一起；
+- 配置项 `CfgNavKey` 由逐作 `Plugin.cs` 绑定，平台只收一个「这一帧要不要切」的布尔。
+
+用户后来明确本作要**纯 `Ctrl+Alt`**（没有主键），所以平台层 `KeyEdge` 又补了
+纯修饰键组合的判定（见下一节），逐作把 `CfgNavKey` 默认值改成 `Ctrl+Alt` 即可；
+`Ctrl+Alt+G` 这类带主键的组合键仍走 `Hotkey`，两条路互不干扰
+（`ModifierChordDown` 在按住期间出现其它键会作废，因此 `Ctrl+Alt+G` 不会误触发纯组合）。
+
+另外 `KeyEdge.Pressed` 整段包了 `try/catch`：Active Input Handling 设成
+Input System Package 时旧 `Input` 会抛 `InvalidOperationException`，异常冒到
+`Plugin.Update` 会让热键整段失效并每帧刷日志。现在按「没按」处理，
+与 `Hotkey.Down` 的纪律一致。UiNav 里的输入框提示也从「按 Tab 返回导航」
+改成「再次按导航开关返回导航」（平台不知道逐作配的是哪个键）。
+
+### 五、纯修饰键组合：`KeyEdge.ModifierChordDown`（0.2.2 新增）
+
+`Hotkey` 表达不了「只有修饰键」的组合（它要求必须有主键），而用户要的正是纯
+`Ctrl+Alt`。`KeyEdge` 新增一个跨作品通用的平台层 API，逐作直接调用：
+
+    public static bool ModifierChordDown(string spec, float minHoldSeconds = 0.25f)
+
+- `spec` 只允许修饰键，`+` 或空格分隔，大小写不敏感；认
+  `Ctrl/Control`、`Alt`、`Shift`、`Win/Windows/Command/Cmd/Meta/Super`；
+  组内左右键任意一个都算（Ctrl = `LeftControl` 或 `RightControl`）。
+  出现任何非修饰键 token → 返回 **false**（带主键的组合键仍用 `Hotkey.Down`）。
+- 语义：所有组同时按住 ≥ `minHoldSeconds`（默认 **0.25 秒**；负数/NaN 按 0）
+  时返回 true **一次**；按住期间（武装那一帧之后）出现任何其它**键盘**键 →
+  本次作废；触发或作废后必须**全部松开**才能再次触发（自带闩锁）。鼠标按钮不算「其它键」。
+- 为什么记录「武装帧」而不是直接看 `Input.anyKeyDown`：按下修饰键那一帧
+  `anyKeyDown` 必然为 true，直接判会立刻自我作废；所以只在
+  `Time.frameCount > 武装帧` 之后再看到 `anyKeyDown` 才取消。
+- 实现约束：只用 legacy `UnityEngine.Input` + `try/catch`（Input System-only 工程里
+  旧 `Input` 会抛 `InvalidOperationException`，按「没按」处理并清状态）；
+  用 `Time.unscaledTime`（暂停/降速时仍然可靠）；不引 `Il2CppInterop` / 游戏类型 /
+  Input System；解析结果按 spec 缓存、状态全静态字段，**每帧不分配**；
+  同一时刻只维护一组 chord（平台层只需要导航开关这一个）。
+- `KeyEdge.Reset()` 一并清 chord 状态：场景切换 / 失焦后不会残留「已触发、等松手」。
+
+逐作接法（用 `CfgNavKey`，本作默认值 `Ctrl+Alt`）：
+
+    // Plugin.Awake
+    A11yHost.NavTogglePressed = () => KeyEdge.ModifierChordDown(CfgNavKey.Value);
+
+`ModifierChordDown` 已自带「触发后必须松手」的闩锁，这条路上不需要逐作再维护
+`_navKeyLatched`；只有走 `Hotkey.Down`（修饰键+主键）时才需要逐作自己闩锁。
+
+### 兼容性
+
+- 平台层仍是零游戏类型依赖：`tools/compile_check.ps1` PASS，
+  `.compilecheck` 临建工程 **0 警告 0 错误**（不引用 Assembly-CSharp）。
+- 老作不绑新钩子/新配置时：导航开关仍是 Tab；`CfgSpeakRawName` 按 false、
+  `CfgUnknownConfirm` 按 true（安全默认值）。**已发布的老作二进制不受影响**；
+  若重新构建老作且希望保持旧朗读文本，需要显式把 `CfgSpeakRawName` 绑成 true。
+- `A11yHost.Missing()` 不把 4 个新可选槽位算作缺失（避免老作启动白报几条，
+  把真正该修的漏填项淹掉），`Clear()` 会一并清空。
+- `KeyEdge.ModifierChordDown` / `Reset()` 的 chord 清理是**纯增量**：不调用它的作品
+  完全不受影响，`Pressed` / `DigitPressed` / `Parse` 行为未变。
+- 16 处 `as`/`is` 改动语义等价（换成 `GetComponent<T>()` 判原生类型），没有任何
+  「行为变化」需要老作适配；它与 RaycastAllCompat 一起都属于**跨运行时兼容性**改动。
 
 ---
 

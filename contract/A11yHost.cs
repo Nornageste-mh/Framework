@@ -136,6 +136,40 @@ namespace A11yFramework
         /// <summary>哪些控件需要二次确认，按对象名**全等**匹配（不是正则，见流水线 G12）。</summary>
         internal static ConfigEntry<string> CfgQuitNames;
 
+        /// <summary>
+        /// 允许把**原始标识**（对象名 / 类型名 / ID）当标签念出来。默认 <b>false</b>（0.2.2）。
+        ///
+        /// === 为什么默认关 ===
+        ///
+        /// 用户反馈的原话是「控件绑定的 Text 读不到时直接念 GameObject 名/类型名/ID」。
+        /// 平台层原来在「子树文字 / 逐作钩子 / 别名 / 同行文字」全失败后
+        /// <c>return AncestorNameOf(s)</c>，最后 <c>return s.gameObject.name</c> ——
+        /// 这是一个**静默**退化：调用方拿到的是非空字符串，没有任何标志说明
+        /// 它是对象名（可能还长得像人话，比如 <c>Exit</c>），玩家会当真。
+        ///
+        /// 现在默认改念结构化语义描述（见 UiNav.SemanticText）：
+        /// 「未命名按钮，第 3 项，共 7 项，面板设置」。原始名只写诊断日志
+        /// （<see cref="Diag"/>，需要「界面诊断日志」打开）。
+        ///
+        /// 只有排查「这个控件到底是什么」时才临时打开它 —— 打开后 UI 朗读会变难听，
+        /// 不是给玩家用的开关。为 null 时按 false 处理（不依赖逐作是否绑了它）。
+        /// </summary>
+        internal static ConfigEntry<bool> CfgSpeakRawName;
+
+        /// <summary>
+        /// 「标签是推断出来的」时，激活前要不要二次确认。默认 <b>true</b>（0.2.2）。
+        ///
+        /// 标签质量分层见 UiNav.LabelQuality：Bound / Nearby 是可信的，
+        /// Semantic（结构化语义描述）与 Raw（念了原始标识）是**推断**出来的。
+        /// 推断标签下的控件照样可以操作，但不能一按就执行 —— 读屏玩家分不清
+        /// 「未命名按钮，第 2 项」和旁边那个「确定」，按错可能直接存档 / 覆盖 / 返回标题。
+        ///
+        /// 语义与退出确认（CfgQuitConfirm）一致：第一次只重复朗读并提示，
+        /// 第二次按同一控件才真正 Activate；8 秒不确认失效，换项 / 退出导航即清除。
+        /// 为 null 时按 true 处理（安全默认值，不依赖逐作是否绑了它）。
+        /// </summary>
+        internal static ConfigEntry<bool> CfgUnknownConfirm;
+
         // ====================================================================
         // 共享层需要的钩子（由各作的 Plugin / Patches 实现并填入）
         // ====================================================================
@@ -177,6 +211,87 @@ namespace A11yFramework
         /// <summary>导航模式是否要接管这一下「回车 / 空格」的 submit（对应 UiNav.ShouldMuteUnitySubmit）。</summary>
         internal static Func<bool> ShouldMuteUnitySubmit;
 
+        /// <summary>
+        /// 「这一帧要不要切换导航模式」。**只增不改**（0.2.2）：留空时平台层保持原来的行为 ——
+        /// <c>KeyEdge.Pressed(KeyCode.Tab)</c>，前三作逐字节不变。
+        ///
+        /// === 为什么开关不能由平台层直接读配置项 ===
+        ///
+        /// 1) **组合键解析属于逐作热键系统**。平台层的 KeyEdge 只做单键边沿；
+        ///    带修饰键的写法（<c>Ctrl+Alt+G</c>）由 Hotkey.cs 解析，语义是
+        ///    「写了哪个修饰键就要求哪个按住、没写的必须没按住、且必须有一个主键」——
+        ///    所以 <c>Ctrl+Alt+G</c> 不会被游戏自己的 <c>G</c> / <c>Alt+G</c> 触发，
+        ///    也不会被 <c>Ctrl+Alt+X</c> 这种「组合键 + 第三个键」误判（主键对不上）。
+        /// 2) **边沿闩锁必须和「有没有抢游戏键」的判定放在一起**。Hotkey.Down 只回答
+        ///    「这一帧是否按下」，长按/OS 自动重复会连报，所以逐作层要自己加
+        ///    `_navKeyLatched`（抬起复位）。这段状态放在逐作层才看得见它和
+        ///    输入框聚焦、IME、游戏自身热键的关系。
+        /// 3) **前三作不能改行为**。它们没有这个钩子，默认退回 Tab 即可；
+        ///    若平台层改成读 A11yHost.CfgNavKey，没绑的老作会同时失去 Tab 和新键。
+        ///
+        /// === 0.2.3：窗口拿不到焦点，必须配 <see cref="UseGlobalKeys"/> ===
+        ///
+        /// 本作窗口 exstyle 含 WS_EX_NOACTIVATE，默认「单击穿透」下**永远没有键盘焦点**，
+        /// UnityEngine.Input 读不到任何键（UiNav 的开关/方向键/回车/数字键全部失效）。
+        /// 所以逐作除了填这个钩子，还必须 <c>A11yHost.UseGlobalKeys = true</c>，
+        /// 让 KeyEdge / Hotkey 走 Win32 全局读取兜底（见 GlobalKeys.cs）。
+        ///
+        /// 用户把本作导航键定成 **Ctrl+Alt+主键盘加号**：主键是 KeyCode.Equals，
+        /// 而「主键盘 + 」本身就是 Shift+Equals，所以配置写 <c>Ctrl+Alt+Plus</c>
+        /// （Hotkey.Parse 会强制要求 Shift；小键盘 + = KeypadPlus 不算；
+        /// 纯 Ctrl+Alt 没有主键也不算）——这样也不会误触游戏自带的 9 条 Ctrl+Alt+字母热键。
+        ///
+        /// 逐作填法（《不/存在的莉莉丝》，默认 <c>Ctrl+Alt+Plus</c>）：
+        /// <code>
+        /// // Plugin.cs
+        /// CfgNavKey = Config.Bind("界面导航", "导航模式开关键", "Ctrl+Alt+Plus", "...");
+        /// private static bool _navKeyLatched;
+        /// private static bool NavKeyPressed()
+        /// {
+        ///     // 输入框聚焦时不要抢键（Enter 已经用于输入框）
+        ///     bool down = Hotkey.Down(CfgNavKey.Value);   // 内部 try/catch
+        ///     if (!down && CfgNavKeyAllowTab.Value) down = KeyEdge.Pressed(KeyCode.Tab);
+        ///     if (!down) { _navKeyLatched = false; return false; }
+        ///     if (_navKeyLatched) return false;
+        ///     _navKeyLatched = true;
+        ///     return true;
+        /// }
+        /// A11yHost.NavTogglePressed = NavKeyPressed;   // Awake
+        /// A11yHost.UseGlobalKeys = true;               // 本作窗口拿不到焦点（0.2.3）
+        /// </code>
+        ///
+        /// 平台层调用处对异常兜底：钩子抛异常时按「没按」处理，绝不把异常抛进主循环。
+        /// </summary>
+        internal static Func<bool> NavTogglePressed;
+
+        /// <summary>
+        /// 是否用 Win32 全局按键读取（GetAsyncKeyState）补足 UnityEngine.Input。
+        /// **只增不改**，默认 false（前三作不受影响）。
+        ///
+        /// === 为什么需要它（0.2.3 实机取证） ===
+        ///
+        /// 《不/存在的莉莉丝》窗口 class = UnityWndClass、exstyle = 0x080800B0
+        /// （WS_EX_NOACTIVATE | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TOPMOST |
+        /// WS_EX_TRANSPARENT）：默认「单击穿透」模式下**永远拿不到键盘焦点**
+        /// （SetForegroundWindow / AttachThreadInput / SwitchToThisWindow 都试过，
+        /// 前台一直是 Program Manager / 浏览器）。此时 UnityEngine.Input 恒为 false，
+        /// UiNav 的导航开关、方向键、回车、数字键**全部静默失效** —— 是焦点依赖，
+        /// 不是绑定问题。
+        ///
+        /// 打开后：KeyEdge / Hotkey 的「按住 / 按下」取「Input 或全局」并集，
+        /// 边沿由 GlobalKeys 的静态表自己算（GetAsyncKeyState 只回答「是否按住」）。
+        /// user32 不可用（非 Windows / 没有该导出）时自动退回纯 Input，
+        /// 不抛异常、不刷日志。
+        ///
+        /// 安全边界：全局读取会看到**其它程序**的按键（这正是「窗口没焦点也能用」
+        /// 的实现方式），所以必须逐作显式打开；平台层不装全局钩子、不做 DLL 注入。
+        ///
+        /// 接线方向：契约层只放这个 bool；平台层每帧懒同步它
+        /// （GlobalKeys.Reading → SyncWithHostSwitch），保证 platform → contract
+        /// 的分层不被倒过来。
+        /// </summary>
+        public static bool UseGlobalKeys;
+
         // ====================================================================
         // 界面标签钩子（0.1.0.1 新增，来源：《妹控计划》实机取证）
         //
@@ -205,7 +320,13 @@ namespace A11yFramework
         /// </summary>
         internal static Func<Selectable, string> GameLabelOf;
 
-        /// <summary>面板组的中文名（平台层默认念 Canvas 下的顶层祖先名，如 `Right` / `UpRight`）。</summary>
+        /// <summary>
+        /// 面板组的中文名。平台层原来直接念 Canvas 下的顶层祖先名（`Right` / `UpRight`）。
+        ///
+        /// 0.2.2 起：没填或返回空串时不再念英文对象名 —— 名字里没有中日韩字符就
+        /// 退成中性兜底「面板 + 组号」（见 UiNav.GroupName / GroupLabel）。
+        /// 对象名本身含中文时仍照念；<see cref="CfgSpeakRawName"/> 打开时也照念原始名。
+        /// </summary>
         internal static Func<Transform, string> GameGroupName;
 
         /// <summary>
@@ -263,7 +384,13 @@ namespace A11yFramework
             if (CfgQuitNames == null) list.Add("CfgQuitNames");
             if (BlockGameAdvance == null) list.Add("BlockGameAdvance");
             if (TickUiNav == null) list.Add("TickUiNav");
-            // ShouldMuteUnitySubmit 是可选钩子，留空表示「不接管」，不算缺失。
+            // 以下都是 0.2.2 新增的**可选**槽位，留空表示「用平台层的安全默认值」，
+            // 不计入缺失 —— 否则三个已发布的老作每次启动都会白报几条，
+            // 把真正该修的漏填项淹掉：
+            //   · ShouldMuteUnitySubmit ：留空 = 不接管 submit
+            //   · NavTogglePressed      ：留空 = 开关仍旧是 Tab（前三作行为不变）
+            //   · CfgSpeakRawName       ：留空 = false（不念对象名/类型名）
+            //   · CfgUnknownConfirm     ：留空 = true（推断标签激活前二次确认）
             return list.ToArray();
         }
 
@@ -279,9 +406,13 @@ namespace A11yFramework
             CfgExcludeNames = null;
             CfgQuitConfirm = null;
             CfgQuitNames = null;
+            CfgSpeakRawName = null;
+            CfgUnknownConfirm = null;
             BlockGameAdvance = null;
             TickUiNav = null;
             ShouldMuteUnitySubmit = null;
+            NavTogglePressed = null;
+            UseGlobalKeys = false;
         }
     }
 }
