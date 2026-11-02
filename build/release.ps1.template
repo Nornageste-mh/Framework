@@ -9,14 +9,18 @@
     产物：
         .\dist\{{NS}}-<版本>.zip     ← 上传到 GitHub Releases
 
-    发布包 = mod\package\ 的全部内容（BepInEx 5.4.23.5 运行时 + 插件 +
-    nvdaControllerClient.dll）+ 两份用户文档 + licenses\。
+    发布包 = mod\package\ 的全部内容（BepInEx 运行时 + 插件 +
+    nvdaControllerClient.dll）+ 用户文档 + LICENSE / NOTICE.md / 更新日志.md + licenses\。
 
     安装包里**不含安装程序**：补丁是 BepInEx 运行时挂载的，不修改游戏文件，
     安装就是「把 package\ 里的东西拷进游戏根目录」，手写说明足够。
 
     发布包不进版本库（见 .gitignore）：每次发版都会往历史里塞一个几十 MB
     的二进制，而 git 对 zip 没法做增量，重打包一次就多存一整份。
+
+    两条引擎路线共用本模板，由 tools\new_game.py 按 @@ROUTE 标记裁剪：
+        mono  / BepInEx 5.4.23.5
+        il2cpp / BepInEx 6.x（插件在 BepInEx\plugins\{{NS}}\ 子目录）
 #>
 [CmdletBinding()]
 param(
@@ -25,6 +29,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $mod = $PSScriptRoot
+$repoRoot = Split-Path -Parent $mod
 $pkg = Join-Path $mod "package"
 $out = Join-Path $mod "dist"
 
@@ -33,13 +38,31 @@ function Ok($msg)   { Write-Host "    $msg" -ForegroundColor Green }
 
 # ------------------------------------------------------------
 Step "1/4  编译并组包"
+// @@ROUTE:mono@@
 & (Join-Path $mod "build.ps1") -GameDir $GameDir
+// @@ENDROUTE@@
+// @@ROUTE:il2cpp@@
+# 发布不需要写进本机游戏目录，直接传 -NoDeploy（不然游戏在跑时 release 会卡在等退出）。
+& (Join-Path $mod "build.ps1") -GameDir $GameDir -NoDeploy
+// @@ENDROUTE@@
 if ($LASTEXITCODE -ne 0) { Write-Host "build.ps1 失败" -ForegroundColor Red; exit 1 }
 
-$dll = Join-Path $mod "src\{{NS}}\bin\Release\{{NS}}.dll"
-if (-not (Test-Path -LiteralPath $dll)) { Write-Host "找不到 $dll" -ForegroundColor Red; exit 1 }
-$ver = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($dll).FileVersion
-Ok "{{NS}}.dll 版本 $ver"
+# 版本号优先读 csproj（与 Plugin.cs 的 const Version 一致，build.ps1 已校验），
+# 读不到再退回程序集 FileVersion。
+$ver = $null
+$csproj = Join-Path $mod "src\{{NS}}\{{NS}}.csproj"
+try {
+    $x = ([xml](Get-Content -LiteralPath $csproj -Raw)).Project.PropertyGroup.Version |
+         Where-Object { $_ } | Select-Object -First 1
+    if ($x) { $ver = $x.ToString().Trim() }
+} catch { }
+if (-not $ver) {
+    $dll = Join-Path $mod "src\{{NS}}\bin\Release\{{NS}}.dll"
+    if (-not (Test-Path -LiteralPath $dll)) { Write-Host "找不到 $dll" -ForegroundColor Red; exit 1 }
+    $ver = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($dll).FileVersion
+}
+if (-not $ver) { Write-Host "读不到版本号" -ForegroundColor Red; exit 1 }
+Ok "版本号 $ver"
 
 # ------------------------------------------------------------
 Step "2/4  校验安装包内容"
@@ -47,12 +70,24 @@ $need = @(
     "winhttp.dll",
     "doorstop_config.ini",
     ".doorstop_version",
+// @@ROUTE:mono@@
     "BepInEx\core\BepInEx.dll",
     "BepInEx\core\0Harmony.dll",
     "BepInEx\plugins\{{NS}}.dll",
     "BepInEx\plugins\nvdaControllerClient.dll",
+// @@ENDROUTE@@
+// @@ROUTE:il2cpp@@
+    "BepInEx\core\BepInEx.Core.dll",
+    "BepInEx\core\BepInEx.Unity.IL2CPP.dll",
+    "BepInEx\core\BepInEx.Unity.Common.dll",
+    "BepInEx\core\0Harmony.dll",
+    "BepInEx\core\Il2CppInterop.Runtime.dll",
+    "BepInEx\plugins\{{NS}}\{{NS}}.dll",
+    "BepInEx\plugins\{{NS}}\nvdaControllerClient.dll",
+// @@ENDROUTE@@
     "nvdaControllerClient.dll",
-    "licenses\THIRD-PARTY-NOTICES.txt"
+    "LICENSE",
+    "NOTICE.md"
 )
 $ok = $true
 foreach ($n in $need) {
@@ -61,15 +96,62 @@ foreach ($n in $need) {
     else { Write-Host "    [MISS] $n" -ForegroundColor Red; $ok = $false }
 }
 
-# 用户文档：按扩展名收集，避免在这个脚本里写中文文件名
-$docs = @(Get-ChildItem $pkg -Filter "*.md" -File)
-if ($docs.Count -lt 2) { Write-Host "    [MISS] package\ 里的用户文档不足两份" -ForegroundColor Red; $ok = $false }
-foreach ($d in $docs) { Ok "[ok]   $($d.Name)" }
+# 用户文档：必须按名字对上（只数数量不够：曾经漏了 更新日志.md 但数量仍然 >= 2）。
+foreach ($d in @("安装说明.md", "常见问题.md", "更新日志.md")) {
+    if (Test-Path -LiteralPath (Join-Path $pkg $d)) { Ok "[ok]   $d" }
+    else { Write-Host "    [MISS] $d" -ForegroundColor Red; $ok = $false }
+}
 
-# 不该出现的东西
-foreach ($bad in @("BepInEx\config", "BepInEx\plugins\{{NS}}Probe.dll")) {
-    if (Test-Path -LiteralPath (Join-Path $pkg $bad)) {
-        Write-Host "    [不该有] $bad" -ForegroundColor Red; $ok = $false
+# 第三方许可证：只认**本路线实际随包组件**的文本。
+# 逐作仓 mod\licenses\ 由 new_game.py 按路线裁剪，这里按名字逐个核对：
+# 少拷是合规问题；整目录拷（别作通告、不随包组件）同样是合规问题 —— 已有作品实测混入过。
+$lic = Join-Path $pkg "licenses"
+$licWant = @(
+// @@ROUTE:mono@@
+    "MIT-BepInEx.txt",
+    "MIT-HarmonyX.txt",
+    "LGPL-2.1-UnityDoorstop.txt",
+    "LGPL-2.1-NVDA-ControllerClient.txt"
+// @@ENDROUTE@@
+// @@ROUTE:il2cpp@@
+    "LGPL-2.1-BepInEx.txt",
+    "MIT-HarmonyX.txt",
+    "LGPL-2.1-UnityDoorstop.txt",
+    "LGPL-3.0-Il2CppInterop.txt",
+    "LGPL-2.1-NVDA-ControllerClient.txt"
+// @@ENDROUTE@@
+)
+if (-not (Test-Path -LiteralPath $lic)) {
+    Write-Host "    [MISS] licenses\" -ForegroundColor Red; $ok = $false
+} else {
+    $licFiles = @(Get-ChildItem $lic -Recurse -File | ForEach-Object { $_.Name })
+    foreach ($n in $licWant) {
+        if ($licFiles -contains $n) { Ok "[ok]   licenses\$n" }
+        else { Write-Host "    [MISS] licenses\$n —— 本路线随包组件的许可证，必须带" -ForegroundColor Red; $ok = $false }
+    }
+    foreach ($n in $licFiles) {
+        if ($licWant -notcontains $n) {
+            Write-Host "    [EXTRA] licenses\$n —— 不随包/别作的许可证，不该出现在发布包里" -ForegroundColor Red
+            $ok = $false
+        }
+    }
+}
+
+# 不该出现的东西：interop / unity-libs / 反编译工程 / 开发配置 / 带源码的产物。
+$forbidden = @("BepInEx\interop", "BepInEx\unity-libs", "BepInEx\config\{{GUID}}.cfg")
+$forbiddenExt = @(".pdb", ".cs", ".ps1", ".py", ".bin", ".nson", ".log", ".bundle", ".assets")
+foreach ($f in Get-ChildItem $pkg -Recurse -File -Force) {
+    $rel = $f.FullName.Substring($pkg.Length).TrimStart('\')
+    foreach ($x in $forbidden) {
+        if ($rel -like "$x\*" -or $rel -ieq $x) {
+            Write-Host "    [不该有] $rel" -ForegroundColor Red; $ok = $false
+        }
+    }
+    if ($forbiddenExt -contains $f.Extension.ToLowerInvariant()) {
+        Write-Host "    [不该有] $rel（禁止扩展名）" -ForegroundColor Red; $ok = $false
+    }
+    if ($f.Extension -ieq ".cfg" -and $rel -ine "BepInEx\config\BepInEx.cfg") {
+        Write-Host "    [不该有] $rel（只允许 BepInEx\config\BepInEx.cfg）" -ForegroundColor Red; $ok = $false
     }
 }
 if (-not $ok) { Write-Host "`n安装包校验未通过" -ForegroundColor Red; exit 1 }
@@ -96,15 +178,20 @@ $za.Dispose()
 Ok $zip
 Ok ("{0} MB, {1} 个条目" -f [Math]::Round((Get-Item -LiteralPath $zip).Length / 1MB, 1), $total)
 if ($badN -gt 0) {
-    Write-Host "    $badN 个条目用了反斜杠分隔符" -ForegroundColor Red
+    Write-Host "    $badN 个条目用了反斜杠分隔符 —— 必须用 tools\makezip.ps1 重打" -ForegroundColor Red
     exit 1
 }
 
 # ------------------------------------------------------------
 Step "4/4  完成"
+$tag = "v$ver"
 Write-Host @"
 
-发布：把 $zip 上传到 GitHub Releases（tag 用 v$ver）。
-用户拿到后解压，把里面的东西整体拷进游戏根目录即可。
+发布清单：
+  1. 上传 $zip 到 GitHub Releases（tag 用 $tag）
+  2. 用**干净的游戏目录**实测一次（不装补丁也要能进游戏，确认可回退）
+  3. 按 docs\templates\测试问卷.md 跑一遍读屏验证，把结果写进 release note
+  4. 核对 README 的「已知问题」与 NOTICE.md 的第三方组件表是否与包内容一致
+  5. 用户拿到后解压，把里面的东西整体拷进游戏根目录即可。
 
 "@ -ForegroundColor Cyan

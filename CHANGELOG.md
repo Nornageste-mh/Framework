@@ -18,6 +18,8 @@
 
 | 版本 | 日期 | 要点 |
 |---|---|---|
+| 0.2.6.0 | 2026-11-02 | 并入第 8–10 作（SenrenBanka / OurBriefEternity / SisterOtherParanoia）跨引擎经验：新增 §3.3–§3.5 三条路线（KiriKiri Z / Ren'Py / NVDA 对照）、§5.5–§5.7（G37–G60）、非 Unity 版 P0/P2/P4/P5/P6/P7/P8、§6.5 路线第 0 步、§8 非 Unity 分组、附录与 3→10 作叙事；新增案例文档 `docs/实践仓库经验-第8至10作.md`；生成器对非 Unity 路线显式拒绝（exit 2，`--force-route` 覆盖误判）；README 写明「L1 仅 Unity，契约/纪律跨引擎」；`licenses.md` 补跨引擎许可边界 |
+| 0.2.5.0 | 2026-11-02 | 并入第 4–7 作（aliya / justlilith / manosaba / MeiKong）经验：平台层回灌 `Hotkey` 等号映射、新增 `A11yHost.KeyInputAllowed` 焦点门、`Repeat.Push` 语义冻结注释；流水线新增 §3.1–3.2（UI Toolkit 与三种 L3 补法）、§5.4（G13–G36）、I4–I6、§6.5（逐作升级 8 步）并补强 P2/P4/P5/P6/P7/P8 与 §8；骨架生成器修复 8 处（L1 单一真源、`Choices.cs`、双路线 Plugin/build/release、根 LICENSE/NOTICE/CHANGELOG、`--merge`、结构冒烟、按路线许可证）；`compile_check` 新增逐作模式与 `NameAlias` 大小写守卫；新增案例文档 `docs/实践仓库经验-第4至7作.md` |
 | 0.2.4.0 | 2026-10-22 | 实机导航日志暴露的三个平台层缺陷：**行标签被未激活控件挡掉**（`HasOtherSelectable`/`FirstTextOutside` 只认可见控件）、**alpha≈0 的预制体占位入列**（`VisiblyClickable` 加 `CanvasGroup` 门槛）、**未命名控件没有降级行为就直接激活**（`IsUnnamedLabel` + 复用 `CfgUnknownConfirm` 二次确认，关掉则硬阻止）；compile_check 通过（0 警告 0 错误） |
 | 0.2.3.0 | 2026-10-22 | 用户要求导航开关「全程焦点也能用」：新增 `platform/GlobalKeys.cs`（Win32 `GetAsyncKeyState` 轮询，不装钩子、不注入）+ `A11yHost.UseGlobalKeys`（默认 false，只增不改）；`KeyEdge` / `Hotkey` 改为「`Input` 或全局」并集；导航键定为 **Ctrl+Alt+主键盘加号**（`Hotkey.Parse` 支持 `Plus`/「加号」，强制 Shift+Equals，小键盘加号不算）；compile_check 通过（0 警告 0 错误） |
 | 0.2.2.0 | 2026-10-22 | 用户反馈的两个问题：**读不到文字时不再念对象名/类型名/ID**（分层标签 + 结构化语义降级 + 降级确认），**导航开关改为可配组合键**（`A11yHost.NavTogglePressed` 钩子，本作 `Ctrl+Alt+G`）；另修 **IL2CPP 下 16 处 `as`/`is`/`GetType()` 判组件类型的阻断级 bug**；compile_check 通过（0 警告 0 错误） |
@@ -28,6 +30,151 @@
 | 0.1.0.1 | 2026-09-27 | 界面标签四钩子（文本噪声 / 逐作标签 / 组名 / 组序）+ 进组播报全组总览；修掉新作骨架的两个致命 bug（漏拷 KeyEdge.cs、csproj 注释里的连续减号） |
 | 0.1.0.0 | 待填 | 从三个已发布仓库逆向固化的平台层 + 契约层初版 |
 | 未发版 | 2026-10-21 | 公开前修订：免责声明与许可口径、探针文本转储默认关闭、脚本通用化与本机路径脱敏 |
+
+---
+
+## 0.2.6.0 — 并入第 8–10 作跨引擎经验：**先判路线，再谈拷贝**
+
+### 一、为什么这一版先改「路线」
+
+前十作里有三作不是 Unity：《千恋＊万花》是 **KiriKiri Z**（32 位原生），
+《永恒与星辰与日常》是 **Ren'Py**，《妹妹、他人、妄想症》是 **NVDA 双进程**。
+它们分别打破了「引擎会加载 `plugins\*.dll`」「引擎是 Unity/C#」「换宿主也能算一种 L3」三个前提。
+结论写死在文档与 README：**L1 只服务 Unity（Mono / IL2CPP）；契约、纪律、工具链跨引擎。**
+
+### 二、三条新路线（流水线 §3.3–§3.5）
+
+1. **KiriKiri Z（§3.3，第四条路线）**：判定 `ProductName=TVP(KIRIKIRI) Z core` + PE32；
+   插件导出 `V2Link`/`V2Unlink`/`GetModuleThreadModel`；引擎**不自动加载插件**，唯一预加载点是
+   改 `data.xp3`；改归档验收 = 1277 条 storage 集合/顺序一致 + 两套注入器产物逐字节一致；
+   2D 没有控件模型，导航是 40px 格点 + `getPrimaryLayerAt`；输入走 DirectInput。
+2. **Ren'Py（§3.4，第五条路线）**：松散 `.rpy` 叠加层（`renpy/loader.py:108-109` 磁盘优先），
+   不碰 `.rpa`；新增 **L2.5 引擎适配层**接管 `config.tts_function`；`init` 顺序就是契约；
+   `say_menu_text_filter` 早于 `_last_say_who` 赋值；三规则按「有没有角色名」判朗读；
+   `Keymap` 必须 `init 1200` 且回调无参。
+3. **NVDA 双进程（§3.5，明确否决）**：不是第四种 L3 而是换宿主，L1 不可复用、
+   违反「逐作朗读只经 Repeat」、协议无握手/限长/认证。只吸收 §5.7 的五条测试方法学。
+
+### 三、纪律增量（§5.5–§5.7）
+
+- **§5.5 G37–G45（非 Unity 宿主与原生工具链）**：归档索引静默丢件、界面重扫触发集合、
+  标签 ini 漂移、开发通道必须编译期关闭、自动化输入先试推、PS 5.1 全角标点吞行、
+  `7z -w` 假成功、32 位双保险、安装器/辅助二进制必须可从仓库重建。
+- **§5.6 G46–G55（脚本型引擎钩子纪律）**：钩子存在≠被调用、过滤器时序、声明式覆盖顺序、
+  无报错≠跑起来、Keymap 无参、常量从引擎读、`compile_event` 验键名、周期回调 vs 交互回调、
+  拉模型而非推模型、`TTSRoot` 的「别念我」与「未知控件」要分开。
+- **§5.7 G56–G60（跨引擎测试方法）**：假对端探针、里程碑长跑、稳定性采样、
+  点击命中闭环、世界热点虚拟鼠标注入。
+
+### 四、流水线各阶段
+
+- §0.4 扩为「第 4–10 作校正了什么」；§1.4 补第 8–10 作分工；文首用途改「第十一作」并加
+  **「先读 §3 判路线」**
+- **P0** 增 3 个必答：引擎与宿主判定、引擎是否自动加载插件 + 唯一预加载点（含反向证据）、
+  安装/还原形态；工具链补 `.xp3`/`.rpa`/`unrpyc`/离线运行时核查
+- **P2** 写明非 Unity 骨架是另一套、生成器**拒绝**自动生成并给手工清单
+- **P4** 加假对端探针、里程碑长跑、稳定性采样
+- **P5** 加原生构建（`VCVARS32` x86 / `/MACHINE:X86` / PE `0x014C`）与 Ren'Py 无编译、
+  `check_boot.py` + `lint_patch.py` 断言
+- **P6** 加非 Unity 发布形态：KiriKiri 不带 `data.xp3`、安装器可重建、发布件 grep 调试通道；
+  Ren'Py zip 白名单/三条根/固定时间戳；NVDA 路线不发布
+- **P7/P8** 加文档事实核对（文档写「已关闭」必须代码可证）与 `.gitignore` 历史清理
+- **§6.5** 加第 0 步「先判路线」；**§8** 新增「非 Unity 路线」分组 6 条与文档组；
+  **附录 A/B** 增跨引擎参考文件与证据索引
+
+### 五、生成器（`tools/new_game.py`）
+
+- `--route` 扩为 `mono|il2cpp|krkrz|renpy`；后两者以及 `--gamedir` 启发式命中非 Unity 时
+  **exit 2、不创建输出目录、不写文件**，打印路线证据、手册章节与手工最小清单
+- 探测顺序：Unity 标志优先（防误判）→ KiriKiri Z（exe 字节扫 `TVP(KIRIKIRI)`，
+  或 `data.xp3` + PE32）→ Ren'Py（`renpy\` + `game\*.rpa|*.rpy|*.rpyc`）
+- 新增 `--force-route` 供探测误判时覆盖（显式 `--route krkrz|renpy` 仍拒绝）
+- **未实现 C++/Ren'Py 模板**：没有实机验证的模板只会生成「看起来能编译」的假骨架
+
+### 六、案例文档与仓库矩阵
+
+- 新增 [`docs/实践仓库经验-第8至10作.md`](docs/实践仓库经验-第8至10作.md)：三作盘点（含
+  **验证强度**差异）、KiriKiri Z 的改归档/无控件导航、Ren'Py 的 init 时序/取文/验证体系、
+  NVDA 路线的否决理由与五条方法学、**13 个公开仓库的处置矩阵**、框架边界重画
+- `licenses.md` 补「跨引擎作品的许可边界」：本仓库仍不随附任何二进制/引擎文件
+
+### 七、验证与未验证
+
+- 机械验证：`python -m py_compile tools/new_game.py` exit 0；`compile_check.ps1 -StaticOnly`
+  PASS；mono/il2cpp 回归骨架仍为 41/42 文件、`src` 15、Plugin 分别为
+  `BaseUnityPlugin`/`BasePlugin`、两套逐作模式 PASS；假 Ren'Py/假 KiriKiri 目录均 exit 2
+  且未创建输出目录；`--force-route` 与假 Unity 目录 exit 0；文档本地链接 0 处失效
+- **未验证**：没有真实 KiriKiri Z / Ren'Py 游戏目录，探测只用伪造结构；
+  第 8 作自身只到「代码 + 自检，未实机」，第 10 作没有日志/测试/构建产物；
+  本仓库没有跑过任何一条非 Unity 路线
+
+---
+
+## 0.2.5.0 — 并入第 4–7 作经验：**平台层回灌、UI Toolkit 路线、生成器八处修复**
+
+### 一、平台层（回灌 + 只增不改）
+
+1. **`Hotkey` 支持主键盘等号**（来自 manosaba，已实机）：`"Ctrl+Alt+="` / 全角「＝」/
+   `Equals` 映射到 `KeyCode.Equals`。之前 `Enum.TryParse("=")` **静默失败**，
+   表现为热键完全没反应；本作因此把「重读」从 `Backspace` 改到 `=`，避开游戏占用键。
+2. **新增 `A11yHost.KeyInputAllowed`**（`Func<bool>`，默认 `null` = 不设门）：
+   `GlobalKeys` 读的是**整机**按键，后台也会触发；逐作可用它做前台/输入框焦点门。
+   回调抛异常时**失败开放**；门关时清空边沿表，防止重新放行时补触发一次幽灵按键。
+   **尚未实机验证。**
+3. **`Repeat.Push` 语义冻结注释**：Push = 入缓冲区**并自己播报**，只记不念用 `Note()`。
+   第 7 作本地副本的 Push 不播报，整份替换会让选项念两遍（§6.5 第 4 步 / G33）。
+
+### 二、流水线文档（`docs/无障碍补丁流水线.md`）
+
+- 新增 **§3.1 界面技术栈**（uGUI / UI Toolkit / 无控件的判别与处置，UI Toolkit 六条硬约束）
+  与 **§3.2 三种 L3 补法**（虚拟控件桥 / 临时编号菜单 / 只读扫描 0.22s + keepalive 四道闸）
+- 新增 **§5.4 第 4–7 作增量（G13–G36）**：补丁纪律、输入、导航标签、证据与配置、
+  性能取证五个子节；并声明「G13 起新增不复用旧号」
+- 新增 **§6.5 逐作升级平台层 8 步**（按 tag 哈希 → 换契约 → 补 L1 → 核 `Push` 调用点 →
+  输入门 → 可见性/别名/默认配置 → 工具 → 回归）
+- §5.2 追加 **I4–I6**（IL2CPP 入口、进程内 SelfTest、BepInEx 6 依赖逐项清单）
+- P0 加「界面技术栈必须在 P0 判明」；P1 加 `ui_stack.txt` 与 UI Toolkit 探针；
+  P2 改为 `tools/l1-files.txt` 单一真源并补根文件生成；P3 加现实等待与感知缺口两步；
+  P4 加测试三层、性能预算、自动化边界；P5 加 Mono/IL2CPP 构建分支与启动方式；
+  P6 加发行包十二项自检；P7 加文档事实核对；P8 加 `.gitignore` 两坑与历史清理
+- §7 协作纪律补「审计与修改分离 / 改动必须先能证伪 / 哈希优先于叙事」；
+  §8 出口清单按上述补平台哈希、`GlobalKeys`/`Repeat`/`KeyInputAllowed`、逐作
+  `compile_check`、SelfTest、包自检、文档事实等条目；附录 A/B 同步
+- 新增案例文档 **`docs/实践仓库经验-第4至7作.md`**（aliya / justlilith / manosaba / MeiKong
+  逐作现象、根因、修法、证据与未验证清单）
+
+### 三、骨架生成器与模板（八处修复）
+
+1. **L1 清单单一真源**：新增 `tools/l1-files.txt`；`new_game.py` 逐行读它并双向校验
+   `platform/*.cs`（多/少都拒绝生成），`compile_check.ps1` 也按它断言。
+   历史事故：0.1.0.0 漏 `KeyEdge.cs`、0.2.0.0 漏 `GlobalKeys.cs`（均 CS0103）。
+2. **生成 `Choices.cs` 空壳**：Plugin 模板调用 `Choices.Update()`，旧骨架漏生成 → CS0103。
+3. **`UiNav.Game.cs.template` 补 namespace / partial class 包装**，并写明别名表
+   按忽略大小写查重（NameAlias 重复键会让导航 100% 死且无日志）。
+4. **`Plugin.cs.template` 双路线**：Mono `BaseUnityPlugin` / IL2CPP `BasePlugin.Load` +
+   `AddComponent<PluginBehaviour>`，`Speech.Init` 延到首帧，`GlobalKeys` 预热，
+   每帧逐模块 `try/catch`；IL2CPP csproj 补 `AssemblyVersion` / `FileVersion`。
+5. **`build.ps1` / `release.ps1` 双路线**：BepInEx 6 core 五件套、`plugins\<ns>\` 子目录、
+   patched `Il2CppInterop.Runtime.dll`、按路线取许可证；release 增加逐项自检。
+6. **`new_game.py`**：`--merge` 往已有骨架补文件（已存在跳过并列出，不嵌套 `mod\mod`）；
+   按路线只拷实际随包许可证（不整目录拷贝）；不再把 `--gamedir` 硬编码进脚本，
+   改为可选 `tools/set-gamedir.ps1`；结构冒烟（必备文件 / csproj XML / 别名查重）。
+7. **`compile_check.ps1`**：自动识别 Framework 模式 / 逐作模式；新增 `-GameSrc`
+   （对真实 `UiNav.Game.cs` 做别名查重）、L1 清单完整性、配置读取点启发式、
+   csproj XML 与 BOM 检查。
+8. **`lint_repeat.ps1`**：支持 `-AllowFile Repeat.cs`（逐作布局下必须）；
+   根 `LICENSE` / `NOTICE.md` / `CHANGELOG.md` 由生成器产出（此前从骨架起就缺，第 6 作实测）。
+
+### 四、验证与诚实边界
+
+- 生成器：`python -m py_compile tools/new_game.py` 通过；分别生成 Mono 与 IL2CPP 骨架，
+  结构冒烟通过（文件清单 / csproj XML / 别名查重）；`compile_check.ps1` 逐作模式可跑。
+- 平台层：`compile_check` 静态部分通过；本机**没有安装 Unity**，Framework 模式的
+  `dotnet build` 编译验证无法在本机完成（未验证）。
+- 尚未验证：`KeyInputAllowed` 实机行为、UI Toolkit 三条补法在框架侧复现、
+  逐作升级 8 步完整走一遍、发行包十二项自检在任一作上真打一次包。
+- 本轮新增的结论来自对四个仓库的只读审计与静态验证；除注明「已实机」的条目外，
+  **没有在游戏里跑过**。
 
 ---
 

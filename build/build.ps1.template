@@ -1,10 +1,12 @@
 ﻿#Requires -Version 5.1
 <#
-    可复现构建：下载依赖 → 编译插件 → 组装安装包
+    可复现构建：下载依赖 → 编译插件 →（IL2CPP）部署 → 组装安装包
 
     用法：
         cd <本文件所在的 mod 目录>
-        .\build.ps1
+        .\build.ps1                        # 默认游戏目录（{{GAMEDIR}}）
+        .\build.ps1 -GameDir "D:\...\{{PROCNAME}}"
+        .\build.ps1 -NoDeploy              # IL2CPP：只编译打包，不写进游戏目录
 
     产物：
         .\package\    ← 直接拷进游戏根目录即可用
@@ -12,6 +14,11 @@
     安装包不含安装程序：补丁是 BepInEx 运行时挂载的，不修改游戏文件，
     安装就是「把 package\ 里的东西拷进有 {{EXE}} 的那一层」。
     手写说明见 package\安装说明.md。
+
+    两条引擎路线共用本模板，由 tools\new_game.py 在生成时按 @@ROUTE 标记裁掉
+    不属于本作的那一半：
+        mono  / BepInEx 5.4.23.5   ← 插件基类 BaseUnityPlugin
+        il2cpp / BepInEx 6.x       ← 插件基类 BepInEx.Unity.IL2CPP.BasePlugin
 
     安装包里带了第三方二进制（BepInEx、UnityDoorstop、HarmonyX、Mono.Cecil、
     MonoMod、NVDA Controller Client），它们的许可证与来源说明放在 licenses\，
@@ -23,8 +30,20 @@
 [CmdletBinding()]
 param(
     [string]$GameDir = "{{GAMEDIR}}",
+// @@ROUTE:mono@@
     # 依赖版本（如需升级改这里）
     [string]$BepInExVersion = "5.4.23.5",
+// @@ENDROUTE@@
+// @@ROUTE:il2cpp@@
+    # BepInEx 6 的 be 构建（IL2CPP 必需；5.x 没有 IL2CPP 运行时）
+    [string]$BepInExVersion = "6.0.0-be.788",
+    # 可选：本地已有的 BepInEx 6 zip（离线构建用）
+    [string]$BepInExZip = "",
+    # 可选：Il2CppInterop.Runtime.dll 覆盖（上游 PR277 修复版，见 docs/licenses.md）
+    [string]$Il2CppInteropDll = "",
+    # 只编译打包，不部署到游戏目录
+    [switch]$NoDeploy,
+// @@ENDROUTE@@
     [string]$NvdaClientUrl  = "https://download.nvaccess.org/releases/stable/nvda_2026.2_controllerClient.zip",
     # 复用已有的下载缓存（可选）：设 A11Y_CACHE=某个 mod 目录即可，没有就自己下
     [string]$CacheDir = "$env:A11Y_CACHE"
@@ -32,6 +51,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $mod = $PSScriptRoot
+$repoRoot = Split-Path -Parent $mod
 $dl  = Join-Path $mod "dl"
 New-Item -ItemType Directory -Force -Path $dl | Out-Null
 
@@ -39,7 +59,12 @@ function Step($msg) { Write-Host "`n>>> $msg" -ForegroundColor Cyan }
 function Ok($msg)   { Write-Host "    $msg" -ForegroundColor Green }
 
 # ------------------------------------------------------------
+// @@ROUTE:mono@@
 Step "1/5  检查游戏目录"
+// @@ENDROUTE@@
+// @@ROUTE:il2cpp@@
+Step "1/6  检查游戏目录与 interop 引用"
+// @@ENDROUTE@@
 if (-not (Test-Path -LiteralPath (Join-Path $GameDir "{{EXE}}"))) {
     Write-Host "    找不到游戏：$GameDir" -ForegroundColor Red
     Write-Host "    用 -GameDir 参数指定游戏根目录。"
@@ -47,14 +72,58 @@ if (-not (Test-Path -LiteralPath (Join-Path $GameDir "{{EXE}}"))) {
 }
 Ok $GameDir
 
+// @@ROUTE:il2cpp@@
+# IL2CPP 路线不能直接引用游戏程序集，必须先让 BepInEx 生成 interop 层。
+# 第一次装 BepInEx 6 后要**启动一次游戏**，BepInEx\interop\ 才会被填出来。
+$interopDir = Join-Path $GameDir "BepInEx\interop"
+$interopNeed = @("Assembly-CSharp.dll", "Il2Cppmscorlib.dll", "UnityEngine.CoreModule.dll",
+                 "UnityEngine.UI.dll", "Unity.TextMeshPro.dll")
+$interopMissing = @()
+foreach ($n in $interopNeed) {
+    $p = Join-Path $interopDir $n
+    if (-not (Test-Path -LiteralPath $p)) { $interopMissing += "$n（不存在）"; continue }
+    if ((Get-Item -LiteralPath $p).Length -eq 0) { $interopMissing += "$n（0 字节）" }
+}
+if ($interopMissing.Count -gt 0) {
+    Write-Host "    interop 引用不全：" -ForegroundColor Red
+    $interopMissing | ForEach-Object { Write-Host "      - $_" }
+    Write-Host "    先确认游戏目录里已装 BepInEx 6，然后**启动一次游戏**（到标题画面即可退出），"
+    Write-Host "    BepInEx\interop\ 生成后再重跑本脚本。"
+    exit 1
+}
+if (-not (Test-Path -LiteralPath (Join-Path $GameDir "BepInEx\core\BepInEx.Unity.IL2CPP.dll"))) {
+    Write-Host "    游戏目录里没有 BepInEx 6 的 IL2CPP 运行时（BepInEx\core\BepInEx.Unity.IL2CPP.dll）" -ForegroundColor Red
+    Write-Host "    本作走 IL2CPP 路线，必须用 BepInEx 6 be 构建，不能用 BepInEx 5。"
+    exit 1
+}
+Ok "interop 引用齐全（5 个 dll 均存在且非 0 字节）"
+// @@ENDROUTE@@
+
 # ------------------------------------------------------------
+// @@ROUTE:mono@@
 Step "2/5  获取 BepInEx $BepInExVersion (win x64)"
+// @@ENDROUTE@@
+// @@ROUTE:il2cpp@@
+Step "2/6  获取 BepInEx $BepInExVersion (win x64, IL2CPP)"
+// @@ENDROUTE@@
 $bepZip = Join-Path $dl "BepInEx_win_x64_$BepInExVersion.zip"
 $bepDir = Join-Path $mod "bep_dl"
-if (Test-Path -LiteralPath (Join-Path $bepDir "BepInEx\core\BepInEx.dll")) {
+// @@ROUTE:mono@@
+$bepReady = Join-Path $bepDir "BepInEx\core\BepInEx.dll"
+// @@ENDROUTE@@
+// @@ROUTE:il2cpp@@
+$bepReady = Join-Path $bepDir "BepInEx\core\BepInEx.Unity.IL2CPP.dll"
+// @@ENDROUTE@@
+if (Test-Path -LiteralPath $bepReady) {
     Ok "已存在，跳过下载"
 } else {
     if (-not (Test-Path -LiteralPath $bepZip)) {
+        // @@ROUTE:il2cpp@@
+        if ($BepInExZip -and (Test-Path -LiteralPath $BepInExZip)) {
+            Copy-Item $BepInExZip $bepZip -Force
+            Ok "使用本地 BepInEx zip：$BepInExZip"
+        } else {
+        // @@ENDROUTE@@
         $cacheZip = if ($CacheDir) { Join-Path $CacheDir "dl\BepInEx_win_x64_$BepInExVersion.zip" } else { "" }
         if ($cacheZip -and (Test-Path -LiteralPath $cacheZip)) {
             Copy-Item $cacheZip $bepZip -Force
@@ -63,14 +132,30 @@ if (Test-Path -LiteralPath (Join-Path $bepDir "BepInEx\core\BepInEx.dll")) {
             $url = "https://github.com/BepInEx/BepInEx/releases/download/v$BepInExVersion/BepInEx_win_x64_$BepInExVersion.zip"
             Invoke-WebRequest -Uri $url -OutFile $bepZip -UseBasicParsing -TimeoutSec 180
         }
+        // @@ROUTE:il2cpp@@
+        }
+        // @@ENDROUTE@@
     }
     if (Test-Path -LiteralPath $bepDir) { Remove-Item $bepDir -Recurse -Force }
     Expand-Archive -LiteralPath $bepZip -DestinationPath $bepDir -Force
+    // @@ROUTE:il2cpp@@
+    # 防「下载到了 BepInEx 5」：5.x 的 zip 里没有 IL2CPP 运行时，装上去插件会被静默跳过。
+    if (-not (Test-Path -LiteralPath $bepReady)) {
+        Write-Host "    解压出来的不是 BepInEx 6 的 IL2CPP 构建（缺少 BepInEx\core\BepInEx.Unity.IL2CPP.dll）" -ForegroundColor Red
+        Write-Host "    v$BepInExVersion 可能不是 be 构建；请检查 -BepInExVersion 或 -BepInExZip。"
+        exit 1
+    }
+    // @@ENDROUTE@@
     Ok "已解压到 bep_dl\"
 }
 
 # ------------------------------------------------------------
+// @@ROUTE:mono@@
 Step "3/5  获取 NVDA Controller Client (x64)"
+// @@ENDROUTE@@
+// @@ROUTE:il2cpp@@
+Step "3/6  获取 NVDA Controller Client (x64)"
+// @@ENDROUTE@@
 $nvdaZip = Join-Path $dl "nvda_controllerClient.zip"
 $nvdaDir = Join-Path $mod "nvda_dl"
 $nvdaDll = $null
@@ -99,17 +184,27 @@ if ($nvdaDll) {
 }
 
 # ------------------------------------------------------------
+// @@ROUTE:mono@@
 Step "4/5  编译插件"
+// @@ENDROUTE@@
+// @@ROUTE:il2cpp@@
+Step "4/6  编译插件"
+// @@ENDROUTE@@
 
-# 发布前守卫：BepInPlugin 的版本号必须能被解析成版本号。
+# 发布前守卫：版本号必须是纯数字四段。
 # 它不是给人看的显示名 —— 填 "0.5.8a" 这类带字母的写法，BepInEx 会判定
 # 「version is invalid」并**静默跳过整个插件**：日志里只有一行 Warning，
 # 表现是模组完全没加载、游戏里一片安静，极难排查（上一作 v0.5.8a 踩过）。
 # 想表达 0.5.8a 这种「第五版修订」，用第四位数字：0.5.8.1。
 $srcDir  = Join-Path $mod "src\{{NS}}"
 $pluginCs = Join-Path $srcDir "Plugin.cs"
-$m = Select-String -LiteralPath $pluginCs -Pattern 'BepInPlugin\([^)]*"([^"]+)"\s*\)' | Select-Object -First 1
-if (-not $m) { Write-Host "    在 Plugin.cs 里找不到 BepInPlugin 特性" -ForegroundColor Red; exit 1 }
+# 优先读 const string Version（两条路线的模板都这么写，BepInPlugin 里引用它）；
+# 老仓库若还是字面量写法，退回旧正则。
+$m = Select-String -LiteralPath $pluginCs -Pattern 'const\s+string\s+Version\s*=\s*"([^"]+)"' | Select-Object -First 1
+if (-not $m) {
+    $m = Select-String -LiteralPath $pluginCs -Pattern 'BepInPlugin\([^)]*"([^"]+)"\s*\)' | Select-Object -First 1
+}
+if (-not $m) { Write-Host "    在 Plugin.cs 里找不到版本号（const Version 或 BepInPlugin 字面量）" -ForegroundColor Red; exit 1 }
 $pluginVer = $m.Matches[0].Groups[1].Value
 $parsed = $null
 if (-not [System.Version]::TryParse($pluginVer, [ref]$parsed)) {
@@ -137,11 +232,50 @@ $pluginDll = Join-Path $srcDir "bin\Release\{{NS}}.dll"
 if (-not (Test-Path -LiteralPath $pluginDll)) { Write-Host "    找不到编译产物" -ForegroundColor Red; exit 1 }
 Ok $pluginDll
 
+// @@ROUTE:il2cpp@@
 # ------------------------------------------------------------
+Step "5/6  部署到游戏目录"
+if ($NoDeploy) {
+    Ok "已指定 -NoDeploy，跳过部署"
+} else {
+    # 游戏在跑时 dll 被占用，直接拷会失败；读屏用户经常忘了关游戏。
+    # 最多等 180 秒，等不到就报错退出（不硬杀进程）。
+    $proc = Get-Process -Name "{{PROCNAME}}" -ErrorAction SilentlyContinue
+    if ($proc) {
+        Write-Host "    检测到游戏正在运行，等待退出（最多 180 秒）..." -ForegroundColor Yellow
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        while ($proc -and -not $proc.HasExited -and $sw.Elapsed.TotalSeconds -lt 180) {
+            Start-Sleep -Milliseconds 500
+            $proc = Get-Process -Name "{{PROCNAME}}" -ErrorAction SilentlyContinue
+        }
+        if ($proc) {
+            Write-Host "    游戏仍在运行，无法部署。请退出游戏后重跑，或加 -NoDeploy 只打包。" -ForegroundColor Red
+            exit 1
+        }
+    }
+    $plugDest = Join-Path $GameDir "BepInEx\plugins\{{NS}}"
+    New-Item -ItemType Directory -Force -Path $plugDest | Out-Null
+    Copy-Item $pluginDll -Destination $plugDest -Force
+    Copy-Item $nvdaDll.FullName -Destination $plugDest -Force
+    Ok "已部署到 $plugDest"
+}
+// @@ENDROUTE@@
+
+# ------------------------------------------------------------
+// @@ROUTE:mono@@
 Step "5/5  组装安装包"
+// @@ENDROUTE@@
+// @@ROUTE:il2cpp@@
+Step "6/6  组装安装包"
+// @@ENDROUTE@@
 $pkg = Join-Path $mod "package"
 # 保留自产的说明文件，其余重建
+// @@ROUTE:mono@@
 $keep = @("安装说明.md", "常见问题.md")
+// @@ENDROUTE@@
+// @@ROUTE:il2cpp@@
+$keep = @("安装说明.md", "常见问题.md", "更新日志.md")
+// @@ENDROUTE@@
 $saved = @{}
 foreach ($k in $keep) {
     $p = Join-Path $pkg $k
@@ -154,21 +288,84 @@ foreach ($k in $saved.Keys) {
 }
 
 Copy-Item (Join-Path $bepDir "*") -Destination $pkg -Recurse -Force
+
+// @@ROUTE:mono@@
 $plugDir = Join-Path $pkg "BepInEx\plugins"
 New-Item -ItemType Directory -Force -Path $plugDir | Out-Null
 Copy-Item $pluginDll -Destination $plugDir -Force
 Copy-Item $nvdaDll.FullName -Destination $plugDir -Force
-# 同时放一份到包根：Mono 的 DllImport 会先查应用目录
+// @@ENDROUTE@@
+// @@ROUTE:il2cpp@@
+# IL2CPP 的插件放进独立子目录：BepInEx 6 会按子目录扫描，混在 plugins 根上
+# 容易和别的 mod 的 dll 重名（尤其 nvdaControllerClient.dll）。
+$plugDir = Join-Path $pkg "BepInEx\plugins\{{NS}}"
+New-Item -ItemType Directory -Force -Path $plugDir | Out-Null
+Copy-Item $pluginDll -Destination $plugDir -Force
+Copy-Item $nvdaDll.FullName -Destination $plugDir -Force
+
+# Il2CppInterop.Runtime.dll 覆盖（可选）：上游 PR277 修复了 IL2CPP 元数据
+# 解析的一个崩溃。只有本地提供了修复版才替换，并把来源写进 NOTICE。
+if ($Il2CppInteropDll) {
+    if (-not (Test-Path -LiteralPath $Il2CppInteropDll)) {
+        Write-Host "    -Il2CppInteropDll 指定的文件不存在：$Il2CppInteropDll" -ForegroundColor Red; exit 1
+    }
+    $interopDest = Join-Path $pkg "BepInEx\core\Il2CppInterop.Runtime.dll"
+    Copy-Item $Il2CppInteropDll -Destination $interopDest -Force
+    Ok "已用 PR277 修复版覆盖 Il2CppInterop.Runtime.dll"
+}
+// @@ENDROUTE@@
+# 同时放一份到包根：DllImport 会先查应用目录
 Copy-Item $nvdaDll.FullName -Destination (Join-Path $pkg "nvdaControllerClient.dll") -Force
 
-# 第三方许可证与来源说明（随二进制分发的合规要求）
+# 根许可证与通知：LICENSE 只覆盖本仓库自己的代码；第三方二进制（BepInEx、
+# UnityDoorstop、Il2CppInterop、NVDA）各自的文本在 licenses\，由 NOTICE.md 指路。
+foreach ($f in @("LICENSE", "NOTICE.md")) {
+    $p = Join-Path $repoRoot $f
+    if (Test-Path -LiteralPath $p) { Copy-Item $p -Destination $pkg -Force }
+    else { Write-Host "    警告：仓库根目录缺少 $f" -ForegroundColor Yellow }
+}
+$chg = Join-Path $repoRoot "CHANGELOG.md"
+if (Test-Path -LiteralPath $chg) {
+    Copy-Item $chg -Destination (Join-Path $pkg "更新日志.md") -Force
+} else {
+    Write-Host "    警告：仓库根目录缺少 CHANGELOG.md，安装包将没有 更新日志.md" -ForegroundColor Yellow
+}
+
+# 第三方许可证与来源说明（随二进制分发的合规要求）。
+# ★ 拷内容而不是拷目录：若 $pkg\licenses 已存在，Copy-Item $licDir -Destination $pkg
+#   会生成 $pkg\licenses\licenses 这种嵌套（上一作真的出现过）。
 $licDir = Join-Path $mod "licenses"
 if (Test-Path -LiteralPath $licDir) {
-    Copy-Item $licDir -Destination $pkg -Recurse -Force
-    Ok "已附上第三方许可证：licenses\（$((Get-ChildItem $licDir -Recurse -File).Count) 个文件）"
+    $licDest = Join-Path $pkg "licenses"
+    New-Item -ItemType Directory -Force -Path $licDest | Out-Null
+    Copy-Item (Join-Path $licDir "*") -Destination $licDest -Recurse -Force
+    Ok "已附上第三方许可证：licenses\（$((Get-ChildItem $licDest -Recurse -File).Count) 个文件）"
 } else {
     Write-Host "    警告：找不到 licenses\，安装包将缺少第三方许可证" -ForegroundColor Yellow
 }
+
+# ------------------------------------------------------------
+# 红线自检：安装包里绝不能出现 interop / unity-libs / 反编译工程 / 开发配置。
+# 这些是 IP 与合规红线（见 README「IP 与合规」），发布前必须机械拦一道。
+$forbiddenRel = @("BepInEx\interop", "BepInEx\unity-libs", "{{NS}}Probe", "{{NS}}Probe.dll")
+$forbiddenExt = @(".pdb", ".cs", ".ps1", ".py", ".bin", ".nson", ".log", ".bundle", ".assets")
+$bad = @()
+foreach ($f in Get-ChildItem $pkg -Recurse -File -Force) {
+    $rel = $f.FullName.Substring($pkg.Length).TrimStart('\')
+    foreach ($x in $forbiddenRel) {
+        if ($rel -like "$x\*" -or $rel -ieq $x) { $bad += "$rel（禁止路径）" }
+    }
+    if ($forbiddenExt -contains $f.Extension.ToLowerInvariant()) { $bad += "$rel（禁止扩展名）" }
+    if ($f.Extension -ieq ".cfg" -and $rel -ine "BepInEx\config\BepInEx.cfg") {
+        $bad += "$rel（只允许 BepInEx\config\BepInEx.cfg）"
+    }
+}
+if ($bad.Count -gt 0) {
+    Write-Host "    安装包里混进了不该发布的东西：" -ForegroundColor Red
+    $bad | Select-Object -First 20 | ForEach-Object { Write-Host "      - $_" }
+    exit 1
+}
+Ok "红线自检通过（无 interop / unity-libs / 反编译产物 / 开发配置）"
 
 $n = (Get-ChildItem $pkg -Recurse -File -Force).Count
 Ok "安装包就绪：$pkg（$n 个文件）"

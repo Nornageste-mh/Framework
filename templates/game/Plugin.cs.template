@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
 using UnityEngine;
+// @@ROUTE:il2cpp@@
+using BepInEx.Unity.IL2CPP;
+// @@ENDROUTE@@
 
 namespace {{NS}}
 {
@@ -16,6 +20,18 @@ namespace {{NS}}
     ///   1) 注册配置项（分「朗读」「界面导航」「其它」三组，组名不要改）
     ///   2) 把配置与钩子填进 A11yHost（契约层）
     ///   3) 声明 Harmony 补丁点
+    ///
+    /// === 两条引擎路线（本文件用 @@ROUTE 标记分叉，别手工删分支）===
+    ///
+    ///   Mono / BepInEx 5：插件类继承 BaseUnityPlugin（它本身是 MonoBehaviour，
+    ///   引擎会调 Awake/Update/OnDestroy），语音后端在 Awake 里就能初始化。
+    ///
+    ///   IL2CPP / BepInEx 6：插件类继承 BepInEx.Unity.IL2CPP.BasePlugin（普通类，
+    ///   只有 Log / Config / Load() / Unload() / AddComponent），**引擎不会调
+    ///   Awake/Update**。所以每帧逻辑必须放进文件末尾的 PluginBehaviour : MonoBehaviour，
+    ///   在 Load() 里 AddComponent 挂上去；Speech.Init 也延到 Behaviour 的第一帧
+    ///   —— IL2CPP 的 il2cpp 运行时在 Load() 阶段还没完全就绪，早期初始化读屏后端
+    ///   见过整段静默失败（细节见 Framework 的踩坑记录）。
     ///
     /// === 补丁点一览（方法名**必须**来自 Assembly-CSharp.dll 的反编译实查）===
     ///
@@ -30,10 +46,26 @@ namespace {{NS}}
     ///
     /// 铁律 1：不许猜方法名和对象名。只能来自 ilspycmd 反编译实查，或探针场景树转储。
     /// </summary>
-    [BepInPlugin(Guid, "{{DISPLAY}}", "{{VERSION}}")]
+    [BepInPlugin(Guid, "{{DISPLAY}}", Version)]
+// @@ROUTE:mono@@
     public class Plugin : BaseUnityPlugin
+// @@ENDROUTE@@
+// @@ROUTE:il2cpp@@
+    public class Plugin : BasePlugin
+// @@ENDROUTE@@
     {
         public const string Guid = "{{GUID}}";
+
+        // 版本号是**纯数字四段**（0.1.0.1）。BepInPlugin 的字符串重载只接受
+        // System.Version，`0.1.0a` 这种会直接抛异常导致插件加载失败；
+        // 而且必须与 csproj 的 <Version> 一致（build.ps1 第三道守卫会查）。
+        public const string Version = "{{VERSION}}";
+
+        // 统一日志出口：两条路线都从这里写，Behaviour 里的静态方法也能用。
+        internal static ManualLogSource L;
+
+        // 每帧异常只记一次，避免日志刷屏（放在这里是因为 TickOnce 在 Plugin 里）。
+        private bool _updateErrorLogged;
 
         // ==================== 配置项 ====================
         //
@@ -69,12 +101,47 @@ namespace {{NS}}
 
         private Harmony _harmony;
 
+// @@ROUTE:mono@@
         private void Awake()
+        {
+            L = Logger;
+            Init();
+        }
+
+        private void Update()
+        {
+            TickOnce();
+        }
+
+        private void OnDestroy()
+        {
+            Shutdown();
+        }
+// @@ENDROUTE@@
+// @@ROUTE:il2cpp@@
+        public override void Load()
+        {
+            L = Log;
+            Init();
+        }
+
+        public override bool Unload()
+        {
+            Shutdown();
+            return true;
+        }
+// @@ENDROUTE@@
+
+        /// <summary>
+        /// 公共初始化：两条路线都走这里。Mono 在 Awake、IL2CPP 在 Load。
+        /// 顺序不能改：先有日志出口，再注册配置，再填契约，最后挂补丁。
+        /// </summary>
+        private void Init()
         {
             // ================================================================
             // 1) 先填日志出口 —— 后面每一步失败都要能记下来
             // ================================================================
-            A11yHost.Log = Logger;
+            A11yHost.Log = L;
 
             // ================================================================
             // 2) 注册配置项
@@ -177,6 +244,13 @@ namespace {{NS}}
             A11yHost.BlockGameAdvance  = () => UiNav.BlockGameAdvance;
             A11yHost.ShouldMuteUnitySubmit = () => UiNav.ShouldMuteUnitySubmit;
 
+            // 逐作层的读屏文案钩子（UiNav.Game.cs 里实现，骨架先给安全占位）。
+            // 不填也能跑，但标签/分组会退化成对象名与「面板 N」。
+            A11yHost.GameLabelOf       = UiNav.GameLabelOf;
+            A11yHost.GameGroupName     = UiNav.GameGroupName;
+            A11yHost.GameGroupPriority = UiNav.GameGroupPriority;
+            A11yHost.GameTextIsNoise   = UiNav.GameTextIsNoise;
+
             // 每帧入口。逐作在这里决定要不要跑 UiNav。
             //
             // ★ 这一作要不要**常驻**关掉 uGUI 的 submit 通路
@@ -201,20 +275,48 @@ namespace {{NS}}
             A11yHost.Validate();
 
             // ================================================================
-            // 4) 初始化语音后端
+            // 3.5) 静态构造兜底
+            //      UiNav 的 NameAlias 是 OrdinalIgnoreCase 字典：别名表里只要有
+            //      两个「只差大小写」的键，首次触碰 UiNav（第一次 TickUiNav）就会
+            //      抛 TypeInitializationException —— 真正的 ArgumentException
+            //      在 InnerException 里，而外层异常不会出现在日志中。
+            //      后果是导航 100% 失效且看起来「零报错」。这里主动跑一次静态构造，
+            //      把 InnerException 明确记下来。新增别名时先按忽略大小写查重
+            //      （tools\compile_check.ps1 模式 B 会机械校验）。
             // ================================================================
+            try
+            {
+                RuntimeHelpers.RunClassConstructor(typeof(UiNav).TypeHandle);
+            }
+            catch (TypeInitializationException e)
+            {
+                L.LogError("[a11y] UiNav 静态初始化失败，界面导航会全部失效。InnerException: "
+                           + e.InnerException);
+            }
+            catch (Exception e)
+            {
+                L.LogError("[a11y] UiNav 静态初始化异常: " + e);
+            }
+
+            // ================================================================
+            // 4) 初始化语音后端
+            //    Mono：现在就可以初始化（BepInEx 5 的加载时机足够早且稳定）
+            //    IL2CPP：推迟到 PluginBehaviour 的第一帧，见下面 Behaviour 里的注释
+            // ================================================================
+// @@ROUTE:mono@@
             try
             {
                 Speech.Init(A11yHost.Log);
                 if (Speech.Current == Speech.Backend.None)
-                    Logger.LogWarning("语音不可用: " + Speech.LastError);
+                    L.LogWarning("语音不可用: " + Speech.LastError);
                 else
-                    Logger.LogInfo("语音后端就绪: " + Speech.BackendName);
+                    L.LogInfo("语音后端就绪: " + Speech.BackendName);
             }
             catch (Exception e)
             {
-                Logger.LogWarning("语音初始化异常: " + e.Message);
+                L.LogWarning("语音初始化异常: " + e.Message);
             }
+// @@ENDROUTE@@
 
             // ================================================================
             // 5) 挂补丁
@@ -223,19 +325,42 @@ namespace {{NS}}
             try
             {
                 _harmony.PatchAll(typeof(Patches));
-                Logger.LogInfo("Harmony 补丁已应用。");
+                L.LogInfo("Harmony 补丁已应用。");
             }
             catch (Exception e)
             {
                 // ★ 注意：PatchAll 抛异常时**其他补丁仍然生效**。
                 //   症状极隐蔽：只有一个功能不工作。所以这里必须 LogError 而不是吞掉。
-                Logger.LogError("Harmony 补丁失败: " + e);
+                L.LogError("Harmony 补丁失败: " + e);
             }
+
+// @@ROUTE:il2cpp@@
+            // ================================================================
+            // 6) 挂每帧载体
+            //    IL2CPP 的 BasePlugin 是普通类，引擎不会给它调 Update。
+            //    AddComponent 失败不能静默：没有 Behaviour 就没有导航和读屏。
+            // ================================================================
+            try
+            {
+                AddComponent<PluginBehaviour>();
+                L.LogInfo("[a11y] behaviour added");
+            }
+            catch (Exception e)
+            {
+                L.LogError("[a11y] AddComponent failed: " + e);
+            }
+// @@ENDROUTE@@
+
+// @@ROUTE:mono@@
+            L.LogInfo("[a11y] loaded v" + Version + " (Mono, BepInEx 5)");
+// @@ENDROUTE@@
+// @@ROUTE:il2cpp@@
+            L.LogInfo("[a11y] loaded v" + Version + " (IL2CPP, BepInEx 6)");
+// @@ENDROUTE@@
         }
 
-        private bool _updateErrorLogged;
-
-        private void Update()
+        /// <summary>每帧入口（Mono 由引擎调；IL2CPP 由 PluginBehaviour 调）。</summary>
+        private void TickOnce()
         {
             try
             {
@@ -247,18 +372,71 @@ namespace {{NS}}
                 if (!_updateErrorLogged)
                 {
                     _updateErrorLogged = true;
-                    Logger.LogError("[Plugin] Update 异常: " + e);
+                    L.LogError("[Plugin] Update 异常: " + e);
                 }
             }
         }
 
-        private void OnDestroy()
+        /// <summary>卸载：Mono 在 OnDestroy、IL2CPP 在 Unload 调。每一步都要单独 try。</summary>
+        private void Shutdown()
         {
             try { Speech.Shutdown(); } catch { }
             try { _harmony?.UnpatchSelf(); } catch { }
             try { A11yHost.Clear(); } catch { }
         }
     }
+
+// @@ROUTE:il2cpp@@
+    /// <summary>
+    /// IL2CPP 路线的每帧载体。BepInEx 6 的 BasePlugin 不会被引擎调用 Update，
+    /// 所以把「每帧逻辑 + 语音初始化」都放在这个 MonoBehaviour 上。
+    /// </summary>
+    internal class PluginBehaviour : MonoBehaviour
+    {
+        private static bool _speechInited;
+        private bool _updateErrorLogged;
+
+        private void Update()
+        {
+            // ★ 整帧只有**一路** try/catch：一个异常跳掉本帧，下一帧照常继续，
+            //   绝不让某个子功能失败后整帧逻辑停摆（曾出现过「选项念了但导航不动」
+            //   却被误当成两个独立 bug 排查）。语音初始化也放在同一条路径里，
+            //   但只在第一帧做一次；失败后 _speechInited 已置位，后续帧继续走导航。
+            try
+            {
+                // 语音后端必须等到第一帧再初始化：Load() 阶段 il2cpp 的 Tolk/NVDA
+                // 加载还不稳定，早期初始化会静默失败（读屏完全没声音，日志也不报错）。
+                if (!_speechInited)
+                {
+                    _speechInited = true;
+                    Speech.Init(A11yHost.Log);
+                    if (Speech.Current == Speech.Backend.None)
+                        Plugin.L.LogWarning("语音不可用: " + Speech.LastError);
+                    else
+                        Plugin.L.LogInfo("语音后端就绪: " + Speech.BackendName);
+                }
+
+                if (A11yHost.TickUiNav != null) A11yHost.TickUiNav();
+            }
+            catch (Exception e)
+            {
+                // 每帧异常只记一次，别刷屏；下一帧继续。
+                if (!_updateErrorLogged)
+                {
+                    _updateErrorLogged = true;
+                    Plugin.L.LogError("[PluginBehaviour] Update 异常: " + e);
+                }
+            }
+        }
+
+        private void OnDestroy()
+        {
+            // 场景卸载/插件卸载时也要收干净，否则下次进游戏读屏后端会占着不放。
+            try { Speech.Shutdown(); } catch { }
+            try { A11yHost.Clear(); } catch { }
+        }
+    }
+// @@ENDROUTE@@
 
     // ========================================================================
     // 补丁点

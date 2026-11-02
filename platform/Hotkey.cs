@@ -32,6 +32,10 @@ namespace A11yFramework
     ///                         而且区分了反而更容易配错）
     ///     Ctrl+Alt+Plus       主键盘加号（= Shift+Equals）。0.2.3 新增，也认中文「加号」；
     ///                         小键盘加号（KeypadPlus）**不算**，要它请显式写 KeypadPlus。
+    ///     Ctrl+Alt+=          主键盘等号。0.2.5 新增（来源《魔法少女ノ魔女裁判》0.0.0.11：
+    ///                         重读键从 Backspace 挪到 `=`，避开游戏自带键）；也认全角 `＝`
+    ///                         与显式 `Equals`。`Enum.TryParse("=")` 不认这个符号，
+    ///                         必须在这里映射到 KeyCode.Equals，否则会得到「Unity 不认识这个键名」。
     ///     (空)                已停用，永远不触发
     ///
     /// 两条刻意定下的语义：
@@ -95,6 +99,13 @@ namespace A11yFramework
                 // 主键盘加号（0.2.3）：用户要求「仅限大键盘的加号」。
                 // 中文键盘上打 + 就是 Shift+Equals；小键盘 +（KeypadPlus）是另一个键。
                 if (u == "PLUS" || t == "加号") { plusToken = true; keyName = "Plus"; continue; }
+
+                // 主键盘等号（0.2.5，来源《魔法少女ノ魔女裁判》0.0.0.11）：玩家要求
+                // 「审慎避让游戏自带键」，重读键默认从 Backspace 挪到 `=`。为什么必须显式映射：
+                // `Enum.TryParse("=")` **不认这个符号**，会报「Unity 不认识这个键名」；
+                // 而 KeyCode.Equals 才是主键盘那个 `=`（小键盘回车旁的不算）。
+                // 顺便也认全角 `＝`（中文输入法下容易打出来）与显式写法 `Equals`。
+                if (t == "=" || t == "＝" || u == "EQUALS") { keyName = "Equals"; continue; }
 
                 if (keyName != null) { why = "有多个主键（" + keyName + " 和 " + t + "）"; return false; }
                 keyName = t;

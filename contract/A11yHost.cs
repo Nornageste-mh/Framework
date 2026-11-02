@@ -292,6 +292,43 @@ namespace A11yFramework
         /// </summary>
         public static bool UseGlobalKeys;
 
+        /// <summary>
+        /// 全局读键的「焦点门」：返回 false 时，平台层**暂停** Win32 全局读取（0.2.5）。
+        /// **只增不改**，留空 = 不设门，前三作行为逐字节不变。
+        ///
+        /// === 为什么需要它（《魔法少女ノ魔女裁判》实机取证） ===
+        ///
+        /// <c>GetAsyncKeyState</c> 是**整机范围**的：它不关心前台是哪个窗口。
+        /// 打开 <see cref="UseGlobalKeys"/> 之后，玩家在浏览器里打字、在聊天框里按
+        /// Ctrl+Alt+字母，本补丁的导航开关/方向键/回车/数字键全会跟着触发 ——
+        /// 对「窗口永远拿不到焦点、只能靠全局读取」的作，这是必须付的代价，
+        /// 但不能让它无限扩大：第五作把这一判断写在 L3（Plugin.FocusGate +
+        /// Choices 的输入框判定），第六作也各写各的。
+        ///
+        /// 五次实机之后把它提为契约钩子：**平台层只问「现在能不能读全局键」，
+        /// 具体条件（游戏窗口是否前台、是否在输入框/IME、是否在过场动画、
+        /// 是否轮到玩家操作）留给逐作** —— 平台层不认识任何游戏类型，
+        /// 也不该猜「什么时候算玩家在操作本游戏」。
+        ///
+        /// === 语义与兜底 ===
+        ///
+        ///   · 返回 true  → 全局读取照旧（默认；留空等价于恒 true）；
+        ///   · 返回 false → GlobalKeys.Reading 变 false：KeyEdge / Hotkey / UiNav
+        ///     的全局那一路同时停，且清掉「上一帧按住」表，避免门重新打开时把
+        ///     门关闭期间的一次按键误判成按下沿；
+        ///   · 钩子抛异常 → 按 **true** 处理（fail-open）。门是「减少误触」的优化，
+        ///     不是安全边界；让它把热键整段关掉比误触更糟。
+        ///
+        /// 逐作填法（示意）：
+        /// <code>
+        /// A11yHost.KeyInputAllowed = () => IsGameForeground() &amp;&amp; !IsTextInputFocused();
+        /// </code>
+        ///
+        /// [未验证] 本钩子的空实现路径（null / 恒 true）与 0.2.4.0 逐字节等价；
+        /// 但「游戏级焦点判定」的正确条件仍要逐作实机测（尤其单击穿透 + 输入框聚焦）。
+        /// </summary>
+        public static Func<bool> KeyInputAllowed;
+
         // ====================================================================
         // 界面标签钩子（0.1.0.1 新增，来源：《妹控计划》实机取证）
         //
@@ -413,6 +450,7 @@ namespace A11yFramework
             ShouldMuteUnitySubmit = null;
             NavTogglePressed = null;
             UseGlobalKeys = false;
+            KeyInputAllowed = null;
         }
     }
 }

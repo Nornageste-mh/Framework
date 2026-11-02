@@ -44,7 +44,9 @@ NVDA Controller Client、UnityDoorstop 等也不带。
 > - `licenses/` 共 28 个文件：**24 份许可证原文** + **3 份通知范例** + 1 份上游补丁片段
 >   （`il2cppinterop-pr277.patch`，不是许可证文本）。
 > - 上表是**文本**清单，不等于发布包必须包含的组件清单；逐作发布时按该作实际随包的
->   二进制重新列一遍（范例见下）。
+>   二进制重新列一遍（范例见下）。`tools/new_game.py` 生成骨架时已按路线只拷贝
+>   实际随包组件的文本（Mono 4 份 / IL2CPP 5 份），不再整目录拷贝；路线白名单在
+>   `new_game.py` 的 `ROUTE_LICENSE_FILES`，新增组件时要同步。
 > - **Tolk** 是可选依赖（玩家自备 `Tolk.dll`）。上游是 `dkager/tolk`（Davy Kager 等），
 >   持续维护的 fork 是 `ndarilek/tolk`；后者的 releases 有 CI 构建的 `tolk.zip`，
 >   但只有 `master` 分支、没有版本 tag（引用时写提交号）。上游许可是 **LGPL-3.0**
@@ -54,6 +56,23 @@ NVDA Controller Client、UnityDoorstop 等也不带。
 > - **争渡读屏的 `ZDSRAPI.dll` / `ZDSRAPI_x64.dll` 是专有软件**（非开源、本项目未取得
 >   书面许可、本仓库不随附）。若你在发布包里放兜底副本，请先自行取得授权 ——
 >   见根目录 [`NOTICE.md`](../NOTICE.md) 第 5 节。
+
+## 跨引擎作品的许可边界（0.2.6.0 补注）
+
+第 8–10 作不是 Unity（KiriKiri Z / Ren'Py / NVDA 双进程），本仓库**不收录、也不分发**
+它们的任何二进制或引擎文件：
+
+- **KiriKiri Z 作**：补丁是 C++ `a11y.dll` + 改归档注入器，引擎本体（`krkrz`）是游戏自带、
+  不随补丁分发；Tolk 同为可选依赖（LGPL-3.0，本仓库不随附）、NVDA Controller Client
+  LGPL-2.1、争渡 ZDSR 专有 —— 规则与 Unity 路线相同。
+- **Ren'Py 作**：补丁是松散 `.rpy` 文本，**不含 Ren'Py 引擎**（引擎由游戏自带）；
+  NVDA Controller Client 随包时按 LGPL-2.1 附文本。争渡 DLL 只进包不入库，且不带
+  `ZDSRAPI.ini`。
+- **NVDA 双进程作**：仓库自身没有 LICENSE，本框架**不采纳其路线**，也不复制其代码；
+  只吸收测试方法学（流水线 §5.7）。
+
+> 结论不变：`licenses/` 仍然只服务 Unity 平台层；跨引擎作品的随包组件由**各自仓库**
+> 按实际清单列明，不要把它们的许可文本混进本仓库的路线白名单。
 
 ## 通知范例
 

@@ -15,6 +15,9 @@
 #
 # 所以这里手工建条目，名字自己保证是 '/'。不依赖 7-Zip 等外部程序，
 # 任何装了 .NET 的机器都能复现。
+#
+# 本脚本与引擎路线无关：Mono / IL2CPP 两份发布包都走它，所以模板里没有
+# 模板里的 ROUTE 分支；「zip 条目不含反斜杠」由 release.ps1 用 OpenRead 二次校验。
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$Source,

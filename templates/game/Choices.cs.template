@@ -1,0 +1,94 @@
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace {{NS}}
+{
+    /// <summary>
+    /// 选项的朗读与数字键选择。**每个游戏都必须自己填**。
+    ///
+    /// 为什么这一段不在平台层（L1）：
+    ///   选项的数据结构每个游戏都不一样 —— 可能在游戏自己的对话/选项组件里、
+    ///   可能在自定义的 SelectChoice 数组里、也可能只是几个 Button 的文字。
+    ///   平台层一旦认识某个游戏类型，就不再是「无游戏类型依赖」的冻结层
+    ///   （tools\compile_check.ps1 会机械验证这一条）。
+    ///
+    /// 阶段对照（《无障碍补丁流水线》§6 P4）：
+    ///   1. 先在 Plugin.TickUiNav 里把本类的 Update() 调起来（已接好线）；
+    ///   2. 用 probe 场景树转储找到选项对象/组件，反编译实查读取方式；
+    ///   3. 选项出现时调用 Announce(...)，数字键 1-9 走 ChoiceHotkeys 的读法。
+    ///
+    /// 纪律：所有对玩家的播报必须走 Repeat.Say —— 直接调 Speech.Speak 会让
+    /// 「按重读键念不出刚出现的选项」。已有两个姊妹作的早期版本
+    /// 踩的就是这个坑，tools\lint_repeat.ps1 会机械拦住。
+    /// </summary>
+    internal static class Choices
+    {
+        /// <summary>
+        /// 上一批选项文本。只用来判断「选项是否刚出现 / 是否变了」，
+        /// 避免每帧重复播报。
+        /// </summary>
+        private static readonly List<string> _last = new List<string>();
+
+        /// <summary>
+        /// 每帧调一次（Plugin.TickUiNav 里已经调了）。
+        ///
+        /// TODO 本作实现步骤（**不许猜 API**，全部来自反编译实查 / probe 转储）：
+        ///   1) 找到「当前是否有选项、选项文本是什么」的读取方式；
+        ///   2) 读到的文本先过 TextProc.Clean / TextProc.ShouldRead 再播；
+        ///   3) 与 _last 比较：刚出现或内容变了才 Announce；
+        ///   4) 没有选项时调用 Reset()，否则下一批选项会被误判成「没变」；
+        ///   5) 数字键 1-9 / 沉默键（CfgSilenceKey）在这里或 Patches 里处理，
+        ///      选中后要确认游戏自己的选择逻辑真的被触发。
+        /// </summary>
+        internal static void Update()
+        {
+            // TODO 本作实现。骨架故意留空：空 Update 不会崩，只是没有选项播报。
+            //      这比「猜一个 API 名字导致 TypeLoadException / MissingMethod」安全。
+        }
+
+        /// <summary>
+        /// 把一批选项编号后念出来：`选项：1、是；2、否。`
+        /// 调用方负责给出**已经 Clean 过**的文本；null 项按空串处理。
+        /// </summary>
+        /// <param name="options">按游戏里显示顺序排列的选项文本。</param>
+        internal static void Announce(IList<string> options)
+        {
+            if (options == null || options.Count == 0) return;
+
+            _last.Clear();
+            var sb = new StringBuilder();
+            for (int i = 0; i < options.Count; i++)
+            {
+                string t = options[i] == null ? "" : options[i].Trim();
+                _last.Add(t);
+                if (i > 0) sb.Append("；");
+                // 剪贴板/读屏的顿号习惯：1、文本；2、文本
+                sb.Append(i + 1).Append('、').Append(t);
+            }
+            Repeat.Say("选项：" + sb.ToString(), true);
+        }
+
+        /// <summary>选项消失时清空状态（每帧没有选项就调一次，开销可忽略）。</summary>
+        internal static void Reset()
+        {
+            _last.Clear();
+        }
+
+        /// <summary>
+        /// 判断某个选项文本批次是否与上次相同（避免每帧重播）。
+        /// 供本作 Update 使用；选项数量不同一律视为变化。
+        /// </summary>
+        internal static bool SameAsLast(IList<string> options)
+        {
+            if (options == null) return _last.Count == 0;
+            if (options.Count != _last.Count) return false;
+            for (int i = 0; i < options.Count; i++)
+            {
+                string t = options[i] == null ? "" : options[i].Trim();
+                if (!string.Equals(t, _last[i], StringComparison.Ordinal)) return false;
+            }
+            return true;
+        }
+    }
+}

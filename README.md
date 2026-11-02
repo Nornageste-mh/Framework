@@ -3,11 +3,14 @@
 > **视觉小说的读屏无障碍补丁：可复用的平台层（L1）与契约层（L2）。**
 >
 > 从三个已发布的补丁（BelfryForAccessibility / TheNOexistenceNForAccessibility /
-> TransparentHerForAccessibility）逆向固化而来。目标只有一个：
+> TransparentHerForAccessibility）逆向固化而来，并用第 4–7 作
+> （aliya / justlilith / manosaba / MeiKong）的实战校正。目标只有一个：
 > **下一个补丁从第 0 天起，把平台层从「重写」变成「拷贝」**，
 > 把工期集中到真正逐作不同的两件事 —— **文本清洗** 与 **补丁点挂载**。
 >
 > 设计依据与证据基础：`docs/无障碍补丁流水线.md`
+> 第 4–7 作的逐作细节与证据：`docs/实践仓库经验-第4至7作.md`
+> 第 8–10 作（KiriKiri Z / Ren'Py / NVDA 双进程）的逐作细节：`docs/实践仓库经验-第8至10作.md`
 
 > **免责声明**：本项目是非官方、非营利的第三方无障碍工具，与任何游戏开发商、发行商、
 > 版权方均无隶属、合作、授权或背书关系。本仓库不含任何游戏资源、剧本原文与反编译产物
@@ -48,6 +51,41 @@ TransparentHer 就是这么丢掉 `[朗读]` 诊断日志块和 `UiNav.Diag()` �
 > 使用本仓库制作补丁时需要**自备正版游戏**；提交前的机械守卫见
 > `build/check-staged.ps1.template`（逐作骨架里由 `tools/new_game.py` 生成为
 > `tools/check-staged.ps1`）与本文件同级的 `.gitignore` 第 1 节。
+
+### 第 4–7 作带来的变化（0.2.5.0）
+
+七个作品之后，「拷贝」这件事本身也暴露了新问题：
+
+- **平台层确实收敛了，但会停在不同版本**：第 6 作（manosaba）的平台与 Framework 0.2.4.0
+  只差 1 个文件 5 行；第 5 作（justlilith）用 0.2.x 但踩了 `NameAlias` 大小写重复键；
+  第 4 作（aliya）因游戏用 UI Toolkit 而自研导航；第 7 作（MeiKong）停在 0.1.1.0。
+  → 新增「逐作升级平台层」8 步（流水线 §6.5）与「按 tag 逐文件哈希」纪律（G33）
+- **出现了新的界面技术栈**：UI Toolkit（零 uGUI `Selectable`）让 `UiNav` 整套失效。
+  → 平台层不改，L3 另走「虚拟控件桥 / 临时编号菜单 / 只读扫描」三条补法（流水线 §3.1–3.2）
+- **出现了新的静默失败**：补丁挂载 ≠ 命中、合成输入 ≠ 真实输入、等待玩家输入时不能响应热键、
+  IL2CPP 类型进程外测不到。→ 流水线 §5.4 的 G13–G36 与 I4–I6
+- **骨架生成器第一次被真实使用**：漏 `GlobalKeys.cs`、不生成 `Choices.cs`、
+  Plugin 模板只有 Mono、build/release 只有 BepInEx 5、不生成根 LICENSE/NOTICE/CHANGELOG。
+  → 0.2.5.0 修模板与 `compile_check`（详见 CHANGELOG）
+- **诚实边界**：本轮新增的结论来自对四个仓库的只读审计与静态验证；
+  除注明「已实机」的条目外，**没有在游戏里跑过**（见「尚未验证的部分」）
+
+### 第 8–10 作带来的变化（0.2.6.0）
+
+第 8–10 作不是 Unity，把「平台层可拷贝」这个前提也打穿了：
+
+- **第 8 作《千恋＊万花》是 KiriKiri Z（32 位原生）**：引擎**不会**加载 `plugins\*.dll`，
+  唯一预加载点是游戏自己的启动脚本 → 只能改 `data.xp3`；导航没有控件模型，只有 40px 格点；
+  输入走 DirectInput，`PostMessage` 无效。→ 流水线 §3.3 第四条路线 + §5.5 的 G37–G45
+- **第 9 作《永恒与星辰与日常》是 Ren'Py**：脚本运行时本身就是 API，补丁是松散 `.rpy` 叠加层；
+  但钩子「存在」不等于「被调用」，`init` 顺序错一拍就静默失效、引擎 lint 仍 exit 0。
+  → 流水线 §3.4 第五条路线 + §5.6 的 G46–G55
+- **第 10 作（NVDA 双进程）是反例**：换宿主不是第四种 L3 补法，L1 完全不可复用，
+  还违反「逐作朗读只经 Repeat」的纪律。→ 流水线 §3.5 明确否决，只吸收 §5.7 的测试方法论
+- **框架边界因此写死**：**L1 只服务 Unity（Mono / IL2CPP）；契约、纪律、工具链跨引擎。**
+  生成器必须 `--route unity|krkrz|renpy`，非 Unity 不硬套 P0–P8 的平台层步骤
+- **诚实边界**：第 8 作只到「代码 + 自检，未实机」；第 10 作没有日志/测试/构建产物。
+  引用时带强度，不要和 manosaba 同级看待
 
 ---
 
@@ -100,6 +138,8 @@ TransparentHer 就是这么丢掉 `[朗读]` 诊断日志块和 `UiNav.Diag()` �
 A11yFramework/
 ├─ docs/
 │  ├─ 无障碍补丁流水线.md          ★ 设计依据与全部证据索引
+│  ├─ 实践仓库经验-第4至7作.md     ★ 第 4–7 作逐作经验（UI Toolkit / 平台漂移 / 工具链）
+│  ├─ 实践仓库经验-第8至10作.md    ★ 第 8–10 作逐作经验（KiriKiri Z / Ren'Py / NVDA 反例）
 │  └─ templates/                   逐作文档骨架
 │     ├─ 无障碍可行性验证.md       P0 的产物（一份文档，不是一个插件）
 │     ├─ 测试问卷.md               P4 的载体（十节，第 8 节是硬要求）
@@ -121,6 +161,7 @@ A11yFramework/
 │  ├─ game/
 │  │  ├─ Plugin.cs.template        BepInEx 入口 + 配置分组 + 补丁点骨架
 │  │  ├─ TextProc.cs.template      文本清洗（每作必须重写）
+│  │  ├─ Choices.cs.template       选项层空壳（Plugin 的 TickUiNav 会调用）
 │  │  ├─ UiNav.Game.cs.template    UiNav 的逐作区（别名表 + 姓名框探测）
 │  │  └─ GameA11y.csproj.template  按 §3 路线选 Mono 或 IL2CPP 段
 │  └─ probe/
@@ -144,7 +185,9 @@ A11yFramework/
 │
 └─ tools/
    ├─ new_game.py                  从本仓库生成一个新作的骨架
-   ├─ compile_check.ps1            ★ 机械验证「平台层无游戏类型依赖」
+   ├─ l1-files.txt                 ★ L1 清单唯一真源（生成器/自检/文档共用）
+   ├─ compile_check.ps1            ★ 双模式：Framework 编译自检 / 逐作仓静态守卫
+   ├─ lint_repeat.ps1              重读缓冲区唯一出口的静态断言
    ├─ zdsr_selftest/               ★ 争渡后端 + 按键解析的机械自检（桩 DLL，不需要真读屏）
    └─ assemble_from_sources.py     从三个源仓库重新组装 platform/ 与 licenses/
 ```
@@ -168,6 +211,20 @@ A11yFramework/
 | 前置条件 | 无 | **必须先装 BepInEx 6 并跑一次游戏**生成 `interop\` |
 | 额外配置 | — | `AllowUnsafeBlocks` + `<CodePage>65001</CodePage>` |
 
+**如果两个都不是 Unity**（第 8–10 作之后新增的两条路线，流水线 §3.3–§3.5）：
+
+| | **KiriKiri Z 路线** | **Ren'Py 路线** |
+|---|---|---|
+| 判定 | 版本资源 `ProductName=TVP(KIRIKIRI) Z core`、PE32、无 `Managed` | 目录有 `renpy\`、`game\*.rpy`/`.rpa` |
+| 补丁形态 | 原生 C++ `V2Link` 插件 + 注入启动脚本（改 `data.xp3`） | 松散 `.rpy` 叠加层（不碰 `.rpa`） |
+| 平台层 | **完全不可复用**（C++/32 位/DirectInput） | **完全不可复用**（Python 脚本） |
+| 生成器 | `--route krkrz`：**识别后拒绝**（exit 2 + 手工清单），不生成半成品 | `--route renpy`：**识别后拒绝**（exit 2 + 手工清单） |
+| 必读 | 流水线 §3.3、§5.5（G37–G45） | 流水线 §3.4、§5.6（G46–G55） |
+
+> **边界**：这两条路线只继承 `A11yHost` 的**语义**（配置、唯一朗读出口、导航开关、诊断）
+> 与本仓库的纪律，不继承 `platform/`。宿主层各写各的，别为了「统一」把 L1 弄脏。
+> NVDA 双进程路线已明确否决（§3.5），只保留其测试方法论（§5.7）。
+
 ### 2. 生成骨架
 
 ```
@@ -178,6 +235,18 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 它做这些事：拷 `platform/` + `contract/`、替换 `namespace`、套用 `templates/`
 （去掉 `.template` 后缀、替换占位符）、建好 `mod/` + `probe/` + `tools/` 目录。
 **生成之后平台层就不要再改了** —— 改了就不再是冻结层。
+
+0.2.5.0 起生成器还会：按 `tools/l1-files.txt` 清单拷贝 L1（Framework 里的唯一真源，
+生成器不另写第二份名单，且校验 `platform/` 与清单双向一致）、生成 `Choices.cs` 空壳与
+根 `LICENSE` / `NOTICE.md` / `CHANGELOG.md`、支持往已有目录 `--merge` 补文件而不嵌套
+`mod\mod`，并做**结构冒烟**：必备文件齐全、csproj 能当 XML 解析（防 MSB4025）、
+`NameAlias` 按忽略大小写查重。真正的 `dotnet build` 冒烟仍需在有游戏目录的机器上跑
+（生成器只做静态部分）。
+
+0.2.6.0 起生成器还**按路线把关**：`--route` 支持 `mono|il2cpp|krkrz|renpy`，
+但后两者以及 `--gamedir` 探测到非 Unity 的情况会 **exit 2、不写任何文件**，
+打印流水线 §3.3/§3.4 的手工最小清单；确认是误判时用 `--force-route` 跳过探测。
+**它不会自动生成 C++/Ren'Py 骨架** —— 没有实机验证的模板只会骗人。
 
 ### 3. 填契约层
 
@@ -192,8 +261,11 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
 2. **台词朗读** —— 只挂「抓住当前台词」一个点，先把最短闭环跑通
 3. **选项 + 编号选择 + 重读**
 4. **限时选择** —— 只改 `ref delay`
-5. **界面导航** —— `UiNav` 默认即可用，再按探针结果补 `NameAlias` 与排除名单
+5. **界面导航** —— `UiNav` 默认即可用，再按探针结果补 `NameAlias` 与排除名单；
+   无 `Selectable` / UI Toolkit 的作品走流水线 §3.1–3.2 的 L3 路线，**先别动平台层**
 6. **本作特有形态** —— QTE / 手机 / 手书 / 特殊演出（**每作都会冒出一个**）
+7. **现实时间等待 / 限时选择** —— 只改截止时刻或 `ref delay`，绝不写存档字段
+8. **感知缺口** —— 浮字/字幕用只读扫描；图像消息如实声明读不了
 
 > ### 三条铁律（三作反复验证过的）
 >
@@ -267,6 +339,9 @@ python tools/new_game.py --ns MyGameA11y --game MyGame --exe MyGame.exe ^
   （`KeypadPlus`）是另一个键，**不会**触发；纯 `Ctrl+Alt`（没有主键）也不会触发。
   用途：《不/存在的莉莉丝》把导航开关定成「Ctrl+Alt+主键盘加号」，避开游戏自带的
   9 条 `Ctrl+Alt+字母` 热键
+- 0.2.5 起 `"Ctrl+Alt+="`（也认全角「＝」）可直接写：主键映射到 `KeyCode.Equals`。
+  之前 `Enum.TryParse("=")` 会**静默失败**，表现为热键完全没反应（G32）。
+  《魔法少女ノ魔女裁判》的「重读」键就从这个坑里改过来
 - 全局按键（0.2.3）：`Hotkey` 通过 `GlobalHeld` / `GlobalPressed` 两个委托接收
   `GlobalKeys`，自己不引用它 —— 否则本文件就没法被 `tools/zdsr_selftest` 单文件编译
 - 拒绝纯数字（`Enum.TryParse("0")` 会成功但得到 `KeyCode.None`，流水线 G3）
@@ -309,6 +384,16 @@ A11yHost.UseGlobalKeys = true;   // Plugin.Awake；窗口拿不到焦点的作�
 > 打开后玩家在别的程序里按导航键也会触发 —— 这是「全程焦点可用」的实现代价，
 > 所以必须逐作显式打开，不能做成平台默认。
 
+0.2.5 起契约层多一个可选的焦点门：
+
+```csharp
+A11yHost.KeyInputAllowed = () => IsGameForeground() && !IsTextInputFocused();
+```
+
+留空 = 不设门（前三作行为逐字节不变）；回调抛异常时**失败开放**（按允许处理），
+避免一个门把整局热键弄死。`GlobalKeys.Reading` 在门关时会清空边沿表，
+防止重新放行时补触发一次「幽灵按键」。**该钩子尚未实机验证**，见 CHANGELOG 0.2.5.0。
+
 ### `UiNav.cs` —— 通用导航引擎
 
 引擎**几乎不引用任何游戏类型**，只认 UnityEngine / TMPro。机制（照抄）：
@@ -327,6 +412,10 @@ A11yHost.UseGlobalKeys = true;   // Plugin.Awake；窗口拿不到焦点的作�
 > **绝不要对 `List.Sort` 的比较函数用「近似相等」当分支**
 > （如 `Mathf.Abs(a.Left-b.Left) > 0.01f`）。它不满足传递性，
 > 内省排序的结果是**任意的**，而且**不报错**。必须严格字典序。
+
+> **边界**：`UiNav` 只认**可见的 uGUI `Selectable`**。用 UI Toolkit 或自绘界面的作品
+> 在这条路上会「导航空转」—— 不要改平台层，按流水线 §3.1–3.2 在 L3 解决
+> （虚拟控件桥 / 临时编号菜单 / 只读扫描），并如实说明哪些界面读不到。
 
 ---
 
@@ -430,6 +519,38 @@ A11yHost.UseGlobalKeys = true;   // Plugin.Awake；窗口拿不到焦点的作�
 | I2 | **托管数组传给原生方法会被拷贝，写不回来** | 用 `Il2CppStructArray<Vector3>` |
 | I3 | **猜对象名**（`GameObject.Find("QTEPanel")`） | 引用游戏自己的类型 + `FindObjectOfType`（类型引用是**惰性解析**的） |
 
+### 第 4–7 作新增（G13–G36，摘要；全文见流水线 §5.4）
+
+| # | 陷阱 | 正确做法 |
+|---|---|---|
+| G13 | **补丁方法写在嵌套类里** → `PatchAll` 静默不挂载，日志还打印「补丁已应用」 | 补丁方法直接写在 `Patches` 类；启动逐个打印已挂载方法 |
+| G14 | **挂载 ≠ 命中**：`GetPatchedMethods()` 只证明 detour 装了 | 每个补丁打命中计数 / 首次命中日志 |
+| G15 | **补返回 UniTask / Task / 迭代器 / 非 blittable 的方法** → `MethodAccessException`，剧情永久卡住 | 补丁前查返回类型，只补 `void` 或简单可 blittable 类型 |
+| G16 | 反编译里的 UI 分支**运行时可能根本不存在** | 可达性以运行时探针实例为准，不以反编译分支为准 |
+| G17 | 游戏自己停 `Update` 时插件也停 → 热键/朗读全失灵 | 双通道驱动 + `frameCount` 去重 + 心跳文件 |
+| G18 | 一个补丁点抛异常拖垮整帧 | 每帧逐模块 `try/catch`，异常单次落盘 |
+| G19 | 非 ASCII 路径 / 同名重载 / `nameof` 私有成员 | 重载显式 `new Type[]{…}`；避免 `nameof` 私有成员；路径先校验 |
+| G20–G24 | 后台误触、新 Input System 只认全局键、合成输入游戏不认、等待输入态是禁区 | 见流水线 §5.4.2（含 `KeyInputAllowed` 焦点门） |
+| G25–G28 | 未激活子树的标签、alpha 阈值不统一、`NameAlias` 大小写重复键、逃生入口被隐藏 | 见流水线 §5.4.3 |
+| G29–G33 | 用「看起来像」的 bool 当证据、配置无读取点、发行版没有调试设施、字符串先打印再信、冻结层语义漂移 | 见流水线 §5.4.4 |
+| G34–G36 | 性能改动没先测量、日志全绿却无取证、历史已提交的大文件 | 见流水线 §5.4.5 |
+
+### 第 8–10 作新增（G37–G60，摘要；全文见流水线 §5.5–§5.7）
+
+| # | 陷阱 | 正确做法 |
+|---|---|---|
+| G37 | 非 Unity 引擎**不自动加载插件**；改归档按哈希重建会**静默丢条目** | 先做「引擎是否加载插件」判定与反向证据；改归档验收 = 条目集合+顺序 + 两套注入器产物逐字节一致 |
+| G38 | 界面重扫触发集合写成「每帧」或「定时」 | 只在进模式/激活/语言变化时重扫，并补 +150/+400/+700ms 延迟重扫 |
+| G39 | 标签内置表与玩家 ini 漂移 | 双语/多语言标签分开维护；ini 只做覆盖，缺失回退内置表 |
+| G40 | 调试通道随发行件出厂 | 编译期关闭 + 发布件 `grep` 调试入口，命中断构建 |
+| G41 | 自动化输入直接连点 | 先「试推」3 下（> 双击间隔），文本不动就中止 |
+| G42 | PS 5.1 把全角标点当续行 | 注释结尾禁用全角标点；`.ps1` 必须 UTF-8 BOM |
+| G43 | `7z -w` 相对路径返回成功但产物 32 字节 | 压缩后断言大小/条目数，不用「退出码 0」当成功 |
+| G44 | 32 位游戏配 x64 DLL 静默不加载 | `/MACHINE:X86` + PE `0x014C` 断言；架构选择硬失败 |
+| G45 | 安装器/辅助二进制无法从仓库重建 | 安装器、注入器、桩 DLL 必须源码在库、发布件可复现 |
+| G46–G55 | 脚本型引擎（Ren'Py）：钩子存在≠被调用、时序错拍静默失效、Keymap 无参、键名必须 `compile_event`、焦点表每轮重建、`Bar` 不是 `Button` 等 | 见流水线 §5.6；`lint_patch.py` 12 条断言 + `check_boot.py` 八条正向证据 |
+| G56–G60 | 跨引擎测试：假对端、里程碑长跑、稳定性采样、点击命中闭环、虚拟鼠标注入 | 见流水线 §5.7（来源：第 10 作，只取方法学，不采纳其路线） |
+
 ### 两条不许越过的红线
 
 > **1. 无障碍层绝不能扩大可达范围。**
@@ -482,6 +603,8 @@ A11yHost.UseGlobalKeys = true;   // Plugin.Awake；窗口拿不到焦点的作�
 ## 尚未验证的部分（诚实纪律）
 
 **本仓库的结论全部是静态的源码层结论。没有一行代码在游戏里跑过。**
+（第 4–7 作里标注「已实机」的结论来自那些补丁仓库的实机记录，本仓库只是引用与固化；
+引用处未标注「已实机」的，均按未验证处理。）
 
 | 做过的验证 | 怎么做的 | 证明了什么 |
 |---|---|---|
@@ -489,7 +612,7 @@ A11yHost.UseGlobalKeys = true;   // Plugin.Awake；窗口拿不到焦点的作�
 | 平台层**无 `Plugin.` 引用** | 组装脚本断言 + `compile_check.ps1` 静态检查 | 接口确实已经全部改指 `A11yHost` |
 | 平台层**能挂上逐作 partial** | 用一份最小 `UiNav.Game.cs` 占位实现参与编译 | partial 拆分的接口是完整的 |
 | 三作差异矩阵 | 对 `main` 克隆后按 SHA256 逐文件比对 + 归一化 `namespace` 后 `diff -U0` | 见流水线 §1.1 |
-| `tools/new_game.py` 能生成干净的骨架 | 冒烟测试：生成 55 个文件（27 个渲染文件 + `licenses/` 24 份许可证原文 + `.gitignore`/`.gitattributes` + `tools/compile_check.ps1` + `README.md`），**无 `{{…}}` 占位符残留**；但 `docs/`、`.gitignore`、平台层注释、`templates/game/` 与 `templates/probe/` 仍带上一作的专名与示例代码，生成后须逐作清理（三份姊妹作通知范例与上游补丁片段不随骨架生成），`.ps1` 带 BOM，csproj 按路线正确裁剪 | 骨架生成这一环是通的 |
+| `tools/new_game.py` 能生成干净的骨架 | 两条路线各生成一套：mono 41 / il2cpp 42 个文件（含按路线 4/5 份许可证）；结构冒烟通过（必备文件、csproj XML、真实 `NameAlias` 查重、无占位符/ROUTE 标记）；负向用例（别名重复、删 `GlobalKeys.cs`、清单漂移）均被拒绝 | 骨架生成这一环是通的；但**没有游戏目录，未跑 `dotnet build`** |
 | `tools/assemble_from_sources.py` 可复现 | 源仓库处于组装时的提交，重跑一遍后 `git status` 为空 | `licenses/` 重跑后逐字节一致、`git status` 为空；`platform/` 自 0.2.0.0 起有手工演进（`Repeat.cs`、争渡后端、注释更正），默认不重生成，要重生成才加 `--refresh-platform`；`build/`、`probe/`、`templates/probe/` 已按新作通用化、改为手工维护，要重生成才加 `--refresh-generated` |
 | `platform/Zdsr.cs` 的选路与失败路径 | `tools/zdsr_selftest/run.ps1`：桩 ZDSRAPI DLL 造出「DLL 不在 / 未授权 / 可用 / 掉线」，71 条断言（0.2.0.0 时 64 条，0.2.1.0 增至 71） | 判据确实是 `GetSpeakState ∈ {3,4}`，未授权时**不会**被 `Speak()==0` 骗过 |
 | `platform/Hotkey.cs` 的按键解析 | 同上（20 条断言，Unity 的 `Input` 不参与） | `Alt+Shift+F9` 这类写法可用；`"0"` 这类 G3 陷阱被拒绝 |
@@ -511,6 +634,13 @@ A11yHost.UseGlobalKeys = true;   // Plugin.Awake；窗口拿不到焦点的作�
 | **游戏里那一声是不是争渡念的** | 争渡作为读屏本身也在念东西，从进程外无法把某句话归因到它。目前是「宿主测试证明通路真出声」＋「游戏内日志证明后端切到了争渡」两段拼起来 |
 | 修饰键写法在游戏里真按过 | 只在解析层与宿主里验过；`Alt+Shift+F9` 没在游戏里按过 |
 | `GlobalKeys` 的全局按键在游戏里真按过 | 只做了编译与静态语义检查（`compile_check` 0/0）；`GetAsyncKeyState` 的「按下沿自算」「+ 号只认主键盘」需要在实机里按一遍，见 CHANGELOG 0.2.3.0 |
+| `Hotkey` 的 `=` / 全角「＝」映射 | 只在解析层与 `zdsr_selftest` 里验过；**没在游戏里按过** |
+| `A11yHost.KeyInputAllowed` 焦点门 | 只做了编译与静态语义检查；「焦点切换不幽灵触发」「异常 fail-open」**未实机** |
+| UI Toolkit 的三条 L3 补法 | 来自 aliya / justlilith 的实机结论，本仓库只做文档化，**未在框架侧复现** |
+| 逐作升级 8 步（§6.5） | 由 4 作经验总结，**未作为完整流程走过一遍** |
+| 发行包十二项自检 | 脚本按 4 作教训重写，**尚未在任一作上真打一次包验证** |
+| 非 Unity 三条路线（KiriKiri Z / Ren'Py / NVDA 双进程） | 只做了文档化与路线判定；**没有在本仓库复现过**。第 8 作自己也只到「代码 + 自检，未实机」；第 10 作只取方法学 |
+| 跨引擎纪律（§5.5–§5.7） | 来自对三个新仓库的只读审计与作者自述，**未在本机跑过任何一条** |
 
 > 按流水线 §6 P4 的**诚实纪律**：CHANGELOG 里明确标注「尚未实机复测」的条目是允许的，
 > 把未验证的东西标成已验证是**不允许**的。
@@ -591,5 +721,15 @@ HarmonyX、Mono.Cecil、MonoMod、NVDA Controller Client）。
 | [TransparentHerForAccessibility](https://github.com/Nornageste-mh/TransparentHerForAccessibility) | Mono / BepInEx 5 | **最成熟**（v0.5.9.0），界面导航引擎的参考实现 |
 | [TheNOexistenceNForAccessibility](https://github.com/Nornageste-mh/TheNOexistenceNForAccessibility) | **IL2CPP** / BepInEx 6 | IL2CPP 路线唯一参考；构建/发布/合规最完备 |
 | [BelfryForAccessibility](https://github.com/Nornageste-mh/BelfryForAccessibility) | Mono / BepInEx 5 | 结构最新；最接近「新作起步形态」 |
+| aliya_a11y（《彼方的她》，本地仓库） | Mono / BepInEx 5 | **UI Toolkit 零 `Selectable`** 的导航路线；Harmony 嵌套类/重载陷阱 |
+| [JustLilithForAccessibility](https://github.com/Nornageste-mh/JustLilithForAccessibility) | **IL2CPP** / BepInEx 6 | 0.2.x 平台实战；`NameAlias` 大小写重复键；虚拟控件桥与 keepalive |
+| [ManosabaForAccessibility](https://github.com/Nornageste-mh/ManosabaForAccessibility) | **IL2CPP** / BepInEx 6 | 平台与 0.2.4.0 仅 5 行差；测试分层、低性能档、输入后端判定 |
+| [MeiKongForAccessibility](https://github.com/Nornageste-mh/MeiKongForAccessibility) | Mono / BepInEx 5 | 旧平台（0.1.1.0）升级样本；`Repeat.Push` 语义反转；包合规教训 |
+| [SenrenBanka-For-Accessibility](https://github.com/Nornageste-mh/SenrenBanka-For-Accessibility) | **KiriKiri Z** / 原生 C++ | 引擎不加载插件时的唯一路线：改 `data.xp3`、无控件导航、32 位双保险（**未实机**） |
+| [OurBriefEternityForAccessibility](https://github.com/Nornageste-mh/OurBriefEternityForAccessibility) | **Ren'Py 8.6** | 脚本运行时钩子时序；静态断言 + 启动正向证据的完整样本 |
+| [SisterOtherParanoiaForNVDA](https://github.com/Nornageste-mh/SisterOtherParanoiaForNVDA) | Unity + NVDA 双进程 | **反例**（不采纳路线）；假对端探针/长跑/稳定性采样方法学 |
 
-> 本仓库是这三作的公共部分，**不是任何一款游戏的补丁**，装进游戏不会有任何效果。
+> 本仓库是**这些作品的公共部分**，**不是任何一款游戏的补丁**，装进游戏不会有任何效果。
+> 第 4–7 作的逐作细节见 [`docs/实践仓库经验-第4至7作.md`](docs/实践仓库经验-第4至7作.md)，
+> 第 8–10 作（跨引擎）见 [`docs/实践仓库经验-第8至10作.md`](docs/实践仓库经验-第8至10作.md)。
+> 另有两个非补丁的读屏项目（`Aurora-Reader`、`TextToEmail`）不纳入本流水线，原因见后一份文档 §4。

@@ -91,13 +91,43 @@ namespace A11yFramework
         private static bool _enabled;
         private static bool _synced;
 
-        /// <summary>现在是否真的在读全局键（开关打开 **且** 平台可用）。</summary>
+        /// <summary>现在是否真的在读全局键（开关打开 **且** 平台可用 **且** 焦点门允许）。</summary>
         internal static bool Reading
         {
             get
             {
                 SyncWithHostSwitch();
-                return _enabled && Available;
+                if (!(_enabled && Available)) return false;
+
+                // === 0.2.5 焦点门 ===
+                //
+                // GetAsyncKeyState 是整机范围的：不关心前台是哪个窗口。第五作
+                // 《不/存在的莉莉丝》必须靠全局读取才能用（窗口拿不到焦点），
+                // 但副作用是「在别的程序里打字也会触发本补丁的热键」。
+                // 逐作层已经有各自的 FocusGate / 输入框判定，五次实机后提成契约钩子
+                // A11yHost.KeyInputAllowed：平台层只问「现在能不能读」，条件由逐作给。
+                //
+                // 门关掉时清掉边沿表：否则重新开门那一帧会把「关门期间的按住」
+                // 当成一次新的按下沿（少了抬起事件），多触发一次动作。
+                bool allowed = true;
+                try
+                {
+                    Func<bool> gate = A11yHost.KeyInputAllowed;
+                    if (gate != null) allowed = gate();
+                }
+                catch
+                {
+                    // 钩子是「减少误触」的优化，不是安全边界：异常时 fail-open，
+                    // 宁可误触，也不要把整段热键静默关掉。
+                    allowed = true;
+                }
+
+                if (!allowed)
+                {
+                    _prevHeld.Clear();
+                    return false;
+                }
+                return true;
             }
         }
 

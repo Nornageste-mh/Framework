@@ -39,6 +39,10 @@
     <TargetFramework>net6.0</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CodePage>65001</CodePage>
+    <!-- IL2CPP 路线显式写死程序集版本：BepInEx 6 的插件日志/加载器会读 FileVersion，
+         与 Plugin 的 const Version 保持一致（纯数字四段），避免「日志版本对不上」。 -->
+    <AssemblyVersion>{{VERSION}}</AssemblyVersion>
+    <FileVersion>{{VERSION}}</FileVersion>
 <!-- @@ENDROUTE@@ -->
 <!-- @@ROUTE:mono@@ -->
     <TargetFramework>netstandard2.1</TargetFramework>
@@ -67,6 +71,10 @@
       <HintPath>$({{GAME}}GameDir)\BepInEx\core\BepInEx.Unity.IL2CPP.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="BepInEx.Unity.Common">
+      <HintPath>$({{GAME}}GameDir)\BepInEx\core\BepInEx.Unity.Common.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="0Harmony">
       <HintPath>$({{GAME}}GameDir)\BepInEx\core\0Harmony.dll</HintPath>
       <Private>false</Private>
@@ -85,6 +93,27 @@
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>$({{GAME}}GameDir)\BepInEx\interop\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- 平台层 UiNav / KeyEdge 用到的 UI 与输入模块（interop 层里同名 dll） -->
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$({{GAME}}GameDir)\BepInEx\interop\UnityEngine.UIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$({{GAME}}GameDir)\BepInEx\interop\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$({{GAME}}GameDir)\BepInEx\interop\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$({{GAME}}GameDir)\BepInEx\interop\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$({{GAME}}GameDir)\BepInEx\interop\Unity.TextMeshPro.dll</HintPath>
       <Private>false</Private>
     </Reference>
 <!-- @@ENDROUTE@@ -->
